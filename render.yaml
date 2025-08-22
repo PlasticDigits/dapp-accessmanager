@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: dapp-accessmanager
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_DEFAULT_CHAIN_ID
+        value: "56"
+      # Supply RPC URLs in Render dashboard or here for testing
+      # - key: NEXT_PUBLIC_RPC_BSC
+      #   value: "https://bsc-dataseed.bnbchain.org"
+      # - key: NEXT_PUBLIC_RPC_BSC_TESTNET
+      #   value: "https://bsc-testnet.blockpi.network/v1/rpc/public"
+      # - key: NEXT_PUBLIC_RPC_OPBNB
+      #   value: "https://opbnb-mainnet-rpc.bnbchain.org"
+      # - key: NEXT_PUBLIC_RPC_OPBNB_TESTNET
+      #   value: "https://opbnb-testnet-rpc.bnbchain.org"

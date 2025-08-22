@@ -1,103 +1,338 @@
-import Image from "next/image";
+"use client";
+
+import { useMemo, useState } from "react";
+import { useAccount, useChainId, useReadContract, usePublicClient, useWriteContract } from "wagmi";
+import type { Address, Hex } from "viem";
+import { encodeFunctionData, isAddress } from "viem";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { ROLE, getAccessManagerAddress, getKnownAddressLabel } from "@/lib/contracts";
+import { ABI } from "@/lib/abi";
+import { fetchRoleMembers } from "@/lib/roleMembers";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { address } = useAccount();
+  const chainId = useChainId();
+  const accessManager = getAccessManagerAddress(chainId);
+  const publicClient = usePublicClient();
+  const queryClient = useQueryClient();
+  const { writeContractAsync } = useWriteContract();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  const roles = useMemo(
+    () => [
+      { id: ROLE.ADMIN, label: "ADMIN" },
+      { id: ROLE.FACTORY_CREATOR, label: "FACTORY_CREATOR" },
+      { id: ROLE.BRIDGE_OPERATOR, label: "BRIDGE_OPERATOR" },
+      { id: ROLE.BRIDGE_CANCELLER, label: "BRIDGE_CANCELLER" },
+    ],
+    []
+  );
+
+  const zero = "0x0000000000000000000000000000000000000000" as Address;
+  const roleReads = roles.map((r) =>
+    useReadContract({
+      abi: ABI.AccessManager,
+      address: accessManager,
+      functionName: "hasRole",
+      args: [r.id, (address ?? zero) as Address],
+      query: { enabled: Boolean(address), staleTime: 30_000 },
+    })
+  );
+
+  const [grantAddress, setGrantAddress] = useState<string>("");
+  const [grantRoleId, setGrantRoleId] = useState<bigint>(ROLE.ADMIN);
+  const [grantDelay, setGrantDelay] = useState<number>(0);
+
+  const [revokeAddress, setRevokeAddress] = useState<string>("");
+  const [revokeRoleId, setRevokeRoleId] = useState<bigint>(ROLE.ADMIN);
+
+  const [managedTarget, setManagedTarget] = useState<string>("");
+  const [selectorsText, setSelectorsText] = useState<string>("");
+  const [scheduleRoleId, setScheduleRoleId] = useState<bigint>(ROLE.ADMIN);
+  const [scheduleAt, setScheduleAt] = useState<Date | undefined>(undefined);
+
+  const [isGranting, setIsGranting] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+
+  const membersQueries = roles.map((r) =>
+    useQuery({
+      queryKey: ["role-members", chainId, accessManager, r.id.toString()],
+      queryFn: () => fetchRoleMembers(publicClient!, chainId, r.id),
+      enabled: Boolean(publicClient),
+      staleTime: 60_000,
+      refetchInterval: 30_000,
+    })
+  );
+
+  async function invalidateRoleRelated() {
+    roleReads.forEach((r) => r.refetch());
+    await queryClient.invalidateQueries({ queryKey: ["role-members", chainId, accessManager] });
+  }
+
+  async function handleGrant() {
+    if (!address) return;
+    if (!isAddress(grantAddress)) return;
+    try {
+      setIsGranting(true);
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "grantRole",
+        args: [grantRoleId, grantAddress as Address, BigInt(Math.max(0, grantDelay))],
+      });
+      await publicClient!.waitForTransactionReceipt({ hash });
+      await invalidateRoleRelated();
+      setGrantAddress("");
+    } finally {
+      setIsGranting(false);
+    }
+  }
+
+  async function handleRevoke() {
+    if (!address) return;
+    if (!isAddress(revokeAddress)) return;
+    try {
+      setIsRevoking(true);
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "revokeRole",
+        args: [revokeRoleId, revokeAddress as Address],
+      });
+      await publicClient!.waitForTransactionReceipt({ hash });
+      await invalidateRoleRelated();
+      setRevokeAddress("");
+    } finally {
+      setIsRevoking(false);
+    }
+  }
+
+  function parseSelectors(text: string): Hex[] {
+    return text
+      .split(/[\,\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => (s.startsWith("0x") ? s : ("0x" + s)) as Hex);
+  }
+
+  async function handleScheduleSetTargetFunctionRole() {
+    if (!address) return;
+    if (!isAddress(managedTarget)) return;
+    const selectors = parseSelectors(selectorsText);
+    if (selectors.length === 0) return;
+    const data = encodeFunctionData({
+      abi: ABI.AccessManager,
+      functionName: "setTargetFunctionRole",
+      args: [managedTarget as Address, selectors as any, scheduleRoleId],
+    });
+    try {
+      setIsScheduling(true);
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "schedule",
+        args: [accessManager, data, BigInt(Math.floor(((scheduleAt ?? new Date()).getTime()) / 1000))],
+      });
+      await publicClient!.waitForTransactionReceipt({ hash });
+    } finally {
+      setIsScheduling(false);
+    }
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-6 grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Roles</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {roles.map((r, idx) => {
+            const data = roleReads[idx].data as [boolean, bigint] | undefined;
+            const isMember = data?.[0];
+            return (
+              <Badge key={String(r.id)} variant={isMember ? "default" : "secondary"}>
+                {r.label} {isMember ? "✓" : "x"}
+              </Badge>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Grant Role</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-1.5">
+            <Label htmlFor="grantAddress">Address</Label>
+            <Input id="grantAddress" placeholder="0x..." value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
+          </div>
+          <div className="flex items-end gap-2">
+            <Button disabled>Grant (connect + permissions needed)</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {roles.map((r, idx) => (
+        <Card key={String(r.id)}>
+          <CardHeader>
+            <CardTitle>{r.label} Members</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {(membersQueries[idx].data ?? []).length === 0 ? (
+              <div className="text-sm text-muted-foreground">No members</div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {membersQueries[idx].data!.map((m) => (
+                  <Badge key={m.account}>{getKnownAddressLabel(chainId, m.account as Address) ?? m.account}</Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Grant Role</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-1.5 md:col-span-2">
+            <Label htmlFor="grantAddress">Address</Label>
+            <Input id="grantAddress" placeholder="0x..." value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Role</Label>
+            <Select value={grantRoleId.toString()} onChange={(e) => setGrantRoleId(BigInt(e.target.value))}>
+              {roles.map((r) => (
+                <option key={String(r.id)} value={r.id.toString()}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="grantDelay">Exec Delay (sec)</Label>
+            <Input id="grantDelay" type="number" min={0} value={grantDelay} onChange={(e) => setGrantDelay(Number(e.target.value))} />
+          </div>
+          <div className="flex items-end gap-2">
+            <Button onClick={handleGrant} disabled={!address || isGranting}>
+              {isGranting ? "Granting..." : "Grant"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Revoke Role</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-1.5 md:col-span-2">
+            <Label htmlFor="revokeAddress">Address</Label>
+            <Input id="revokeAddress" placeholder="0x..." value={revokeAddress} onChange={(e) => setRevokeAddress(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Role</Label>
+            <Select value={revokeRoleId.toString()} onChange={(e) => setRevokeRoleId(BigInt(e.target.value))}>
+              {roles.map((r) => (
+                <option key={String(r.id)} value={r.id.toString()}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex items-end gap-2">
+            <Button onClick={handleRevoke} disabled={!address || isRevoking}>
+              {isRevoking ? "Revoking..." : "Revoke"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>setTargetFunctionRole (Immediate)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-1.5 md:col-span-2">
+            <Label htmlFor="managedTarget">Managed Target</Label>
+            <Input id="managedTarget" placeholder="0x..." value={managedTarget} onChange={(e) => setManagedTarget(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Selectors (0x..., comma/space separated)</Label>
+            <Input placeholder="0xabcdef01 0x12345678" value={selectorsText} onChange={(e) => setSelectorsText(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Role</Label>
+            <Select value={scheduleRoleId.toString()} onChange={(e) => setScheduleRoleId(BigInt(e.target.value))}>
+              {roles.map((r) => (
+                <option key={String(r.id)} value={r.id.toString()}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex items-end gap-2 md:col-span-4">
+            <Button
+              onClick={async () => {
+                if (!address || !isAddress(managedTarget)) return;
+                const selectors = parseSelectors(selectorsText);
+                if (selectors.length === 0) return;
+                const hash = await writeContractAsync({
+                  abi: ABI.AccessManager,
+                  address: accessManager,
+                  functionName: "setTargetFunctionRole",
+                  args: [managedTarget as Address, selectors as any, scheduleRoleId],
+                });
+                await publicClient!.waitForTransactionReceipt({ hash });
+              }}
+              disabled={!address}
+            >
+              Execute Now
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Schedule setTargetFunctionRole</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-1.5 md:col-span-2">
+            <Label htmlFor="managedTarget2">Managed Target</Label>
+            <Input id="managedTarget2" placeholder="0x..." value={managedTarget} onChange={(e) => setManagedTarget(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Selectors (0x..., comma/space separated)</Label>
+            <Input placeholder="0xabcdef01 0x12345678" value={selectorsText} onChange={(e) => setSelectorsText(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Role</Label>
+            <Select value={scheduleRoleId.toString()} onChange={(e) => setScheduleRoleId(BigInt(e.target.value))}>
+              {roles.map((r) => (
+                <option key={String(r.id)} value={r.id.toString()}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <DateTimePicker label="When (local)" value={scheduleAt} onChange={setScheduleAt} />
+          <div className="flex items-end gap-2 md:col-span-4">
+            <Button onClick={handleScheduleSetTargetFunctionRole} disabled={!address || isScheduling}>
+              {isScheduling ? "Scheduling..." : "Schedule Operation"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
