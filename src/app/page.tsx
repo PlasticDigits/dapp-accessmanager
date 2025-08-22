@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContracts } from "wagmi";
-import type { Address, Hex } from "viem";
-import { encodeFunctionData, isAddress } from "viem";
+import type { Address, Hex, Abi, AbiFunction } from "viem";
+import { encodeFunctionData, getFunctionSelector, isAddress } from "viem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
-import { ROLE, getAccessManagerAddress, getKnownAddressLabel } from "@/lib/contracts";
+import {
+  ROLE,
+  getAccessManagerAddress,
+  getKnownAddressLabel,
+  ACCESS_MANAGER_ADDRESSES,
+  FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS,
+  CHAIN_REGISTRY_ADDRESS,
+  TOKEN_REGISTRY_ADDRESS,
+  MINT_BURN_ADDRESS,
+  LOCK_UNLOCK_ADDRESS,
+  CL8Y_BRIDGE_ADDRESS,
+  DATASTORE_SET_ADDRESS,
+  GUARD_BRIDGE_ADDRESS,
+  BLACKLIST_BASIC_ADDRESS,
+  TOKEN_RATE_LIMIT_ADDRESS,
+  BRIDGE_ROUTER_ADDRESS,
+  CREATE3_DEPLOYER_ADDRESS,
+} from "@/lib/contracts";
 import { getAddressExplorerUrl } from "@/lib/chains";
 import { ABI } from "@/lib/abi";
 import { fetchRoleMembers } from "@/lib/roleMembers";
@@ -61,6 +78,71 @@ export default function Home() {
   const [isGranting, setIsGranting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+
+  // Known contracts and ABI-driven selector tooling
+  type KnownContractKey =
+    | "AccessManager"
+    | "FactoryTokenCL8yBridged"
+    | "ChainRegistry"
+    | "TokenRegistry"
+    | "MintBurn"
+    | "LockUnlock"
+    | "CL8YBridge"
+    | "DatastoreSetAddress"
+    | "GuardBridge"
+    | "BlacklistBasic"
+    | "TokenRateLimit"
+    | "BridgeRouter"
+    | "Create3Deployer";
+
+  const [selectedKnownKey, setSelectedKnownKey] = useState<KnownContractKey | "">("");
+  const [selectedFunctionSig, setSelectedFunctionSig] = useState<string>("");
+
+  function buildSignature(fn: AbiFunction): string {
+    const inputs = (fn.inputs ?? []).map((i) => i.type).join(",");
+    return `${fn.name}(${inputs})`;
+  }
+
+  const knownContracts = useMemo(
+    () =>
+      [
+        { key: "AccessManager" as KnownContractKey, label: "Access Manager", addressMap: ACCESS_MANAGER_ADDRESSES },
+        { key: "FactoryTokenCL8yBridged" as KnownContractKey, label: "Factory Token CL8y Bridged", addressMap: FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS },
+        { key: "ChainRegistry" as KnownContractKey, label: "Chain Registry", addressMap: CHAIN_REGISTRY_ADDRESS },
+        { key: "TokenRegistry" as KnownContractKey, label: "Token Registry", addressMap: TOKEN_REGISTRY_ADDRESS },
+        { key: "MintBurn" as KnownContractKey, label: "Mint Burn", addressMap: MINT_BURN_ADDRESS },
+        { key: "LockUnlock" as KnownContractKey, label: "Lock Unlock", addressMap: LOCK_UNLOCK_ADDRESS },
+        { key: "CL8YBridge" as KnownContractKey, label: "CL8Y Bridge", addressMap: CL8Y_BRIDGE_ADDRESS },
+        { key: "DatastoreSetAddress" as KnownContractKey, label: "Datastore Set Address", addressMap: DATASTORE_SET_ADDRESS },
+        { key: "GuardBridge" as KnownContractKey, label: "Guard Bridge", addressMap: GUARD_BRIDGE_ADDRESS },
+        { key: "BlacklistBasic" as KnownContractKey, label: "Blacklist Basic", addressMap: BLACKLIST_BASIC_ADDRESS },
+        { key: "TokenRateLimit" as KnownContractKey, label: "Token Rate Limit", addressMap: TOKEN_RATE_LIMIT_ADDRESS },
+        { key: "BridgeRouter" as KnownContractKey, label: "Bridge Router", addressMap: BRIDGE_ROUTER_ADDRESS },
+        { key: "Create3Deployer" as KnownContractKey, label: "Create3 Deployer", addressMap: CREATE3_DEPLOYER_ADDRESS },
+      ]
+        .map((c) => ({ ...c, address: c.addressMap[chainId] as Address | undefined }))
+        .filter((c) => Boolean(c.address)),
+    [chainId]
+  );
+
+  const selectedAbi: Abi | undefined = selectedKnownKey
+    ? (ABI as unknown as Record<string, Abi>)[selectedKnownKey]
+    : undefined;
+  const functionItems = useMemo((): Array<{ sig: string; name: string }> => {
+    if (!selectedAbi) return [];
+    return selectedAbi
+      .filter((i): i is AbiFunction => i.type === "function")
+      .map((fn) => ({ sig: buildSignature(fn), name: fn.name }));
+  }, [selectedAbi]);
+
+  function appendSelectorFromSignature(signature: string) {
+    try {
+      const selector = getFunctionSelector(signature) as Hex;
+      const current = selectorsText.trim();
+      const updated = current.length ? `${current} ${selector}` : selector;
+      setSelectorsText(updated);
+    } catch {}
+  }
 
   const membersQueries = useQueries({
     queries: roles.map((r) => ({
@@ -270,6 +352,49 @@ export default function Home() {
           <CardTitle>setTargetFunctionRole (Immediate)</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-1.5 md:col-span-4">
+            <Label>Known Contract</Label>
+            <div className="grid gap-2 md:grid-cols-3">
+              <Select
+                value={selectedKnownKey}
+                onChange={(e) => {
+                  const key = e.target.value as KnownContractKey | "";
+                  setSelectedKnownKey(key);
+                  setSelectedFunctionSig("");
+                  const found = knownContracts.find((c) => c.key === key);
+                  if (found?.address) setManagedTarget(found.address);
+                }}
+              >
+                <option value="">Custom address…</option>
+                {knownContracts.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={selectedFunctionSig}
+                onChange={(e) => setSelectedFunctionSig(e.target.value)}
+                disabled={!selectedKnownKey}
+              >
+                <option value="">Select function…</option>
+                {functionItems.map((f) => (
+                  <option key={f.sig} value={f.sig}>
+                    {f.sig}
+                  </option>
+                ))}
+              </Select>
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  onClick={() => selectedFunctionSig && appendSelectorFromSignature(selectedFunctionSig)}
+                  disabled={!selectedFunctionSig}
+                >
+                  Add selector
+                </Button>
+              </div>
+            </div>
+          </div>
           <div className="grid gap-1.5 md:col-span-2">
             <Label htmlFor="managedTarget">Managed Target</Label>
             <Input id="managedTarget" placeholder="0x..." value={managedTarget} onChange={(e) => setManagedTarget(e.target.value)} />
