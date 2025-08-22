@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { ROLE, getAccessManagerAddress, getKnownAddressLabel } from "@/lib/contracts";
+import { getAddressExplorerUrl } from "@/lib/chains";
 import { ABI } from "@/lib/abi";
 import { fetchRoleMembers } from "@/lib/roleMembers";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
@@ -189,9 +190,17 @@ export default function Home() {
               <div className="text-sm text-muted-foreground">No members</div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {membersQueries[idx].data!.map((m: { account: string }) => (
-                  <Badge key={m.account}>{getKnownAddressLabel(chainId, m.account as Address) ?? m.account}</Badge>
-                ))}
+                {membersQueries[idx].data!.map((m: { account: string }) => {
+                  const label = getKnownAddressLabel(chainId, m.account as Address) ?? m.account;
+                  const href = getAddressExplorerUrl(chainId, m.account as Address);
+                  return (
+                    <Badge key={m.account}>
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {label}
+                      </a>
+                    </Badge>
+                  );
+                })}
               </div>
             )}
           </CardContent>

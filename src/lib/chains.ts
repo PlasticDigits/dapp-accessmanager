@@ -1,4 +1,4 @@
-import { http, type Chain } from "viem";
+import { http, type Chain, type Address } from "viem";
 import { bsc, bscTestnet, opBNB, opBNBTestnet } from "viem/chains";
 
 export const SUPPORTED_CHAINS: readonly [Chain, Chain, Chain, Chain] = [
@@ -34,4 +34,20 @@ export function getDefaultChainId(): number {
   const parsed = env ? Number(env) : undefined;
   const isSupported = SUPPORTED_CHAINS.some((c) => c.id === parsed);
   return isSupported ? (parsed as number) : bsc.id;
+}
+
+// Block explorer hosts per supported chain
+export const EXPLORER_HOST_BY_CHAIN_ID: Partial<Record<number, string>> = {
+  [bsc.id]: "bscscan.com",
+  [bscTestnet.id]: "testnet.bscscan.com",
+  [opBNB.id]: "opbnb.bscscan.com",
+  [opBNBTestnet.id]: "opbnb-testnet.bscscan.com",
+};
+
+export function getAddressExplorerUrl(
+  chainId: number,
+  address: Address
+): string {
+  const host = EXPLORER_HOST_BY_CHAIN_ID[chainId] ?? "bscscan.com";
+  return `https://${host}/address/${address}`;
 }
