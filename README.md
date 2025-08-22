@@ -1,5 +1,7 @@
 AccessManager Admin DApp using Next.js, shadcn/ui, RainbowKit, wagmi/viem.
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
 Getting Started
 
 ```bash
@@ -26,3 +28,7 @@ Deploy on Render
 
 - Use the included `render.yaml`
 - Set env vars in Render dashboard (RPC URLs, defaults)
+
+### License
+
+- Licensed under AGPL-3.0-only. See `LICENSE`.
