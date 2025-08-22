@@ -7,13 +7,14 @@ export interface RoleMemberEntry {
   account: Address;
 }
 
-function getStartBlock(chainId: number): bigint | undefined {
-  const key = `NEXT_PUBLIC_START_BLOCK_${chainId}`;
-  const raw = process.env[key];
-  if (!raw) return undefined;
-  const n = BigInt(raw);
-  return n > 0n ? n : undefined;
-}
+// Reserved for future indexed queries; currently unused
+// function getStartBlock(chainId: number): bigint | undefined {
+//   const key = `NEXT_PUBLIC_START_BLOCK_${chainId}`;
+//   const raw = process.env[key];
+//   if (!raw) return undefined;
+//   const n = BigInt(raw);
+//   return n > 0n ? n : undefined;
+// }
 
 export async function fetchRoleMembers(
   publicClient: PublicClient,
@@ -24,33 +25,35 @@ export async function fetchRoleMembers(
 
   // Prefer the direct enumerable call if available
   try {
-    const items = (await publicClient.readContract({
-      abi: ABI.AccessManager as any,
+    const items = await publicClient.readContract({
+      abi: ABI.AccessManager,
       address,
       functionName: "getActiveRoleMembers",
       args: [roleId],
-    })) as Address[];
-    return items.map((account) => ({ account }));
-  } catch (err) {
+    });
+    return (items as Address[]).map((account) => ({ account }));
+  } catch {
     // Fallback to pagination if full list not supported by chain/node limits
-    const count = (await publicClient.readContract({
-      abi: ABI.AccessManager as any,
+    const count = await publicClient.readContract({
+      abi: ABI.AccessManager,
       address,
       functionName: "getActiveRoleMemberCount",
       args: [roleId],
-    })) as bigint;
+    });
 
+    const memberCount = count as bigint;
     const pageSize = 500n;
-    const pages: Promise<Address[]>[] = [];
-    for (let index = 0n; index < count; index += pageSize) {
-      const take = count - index > pageSize ? pageSize : count - index;
+    const pages: Promise<readonly Address[]>[] = [];
+    for (let index = 0n; index < memberCount; index += pageSize) {
+      const take =
+        memberCount - index > pageSize ? pageSize : memberCount - index;
       pages.push(
         publicClient.readContract({
-          abi: ABI.AccessManager as any,
+          abi: ABI.AccessManager,
           address,
           functionName: "getActiveRoleMembersFrom",
           args: [roleId, index, take],
-        }) as Promise<Address[]>
+        }) as Promise<readonly Address[]>
       );
     }
 

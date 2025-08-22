@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useAccount, useChainId, useReadContract, usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContracts } from "wagmi";
 import type { Address, Hex } from "viem";
 import { encodeFunctionData, isAddress } from "viem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { ROLE, getAccessManagerAddress, getKnownAddressLabel } from "@/lib/contracts";
 import { ABI } from "@/lib/abi";
 import { fetchRoleMembers } from "@/lib/roleMembers";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 export default function Home() {
   const { address } = useAccount();
@@ -35,15 +35,15 @@ export default function Home() {
   );
 
   const zero = "0x0000000000000000000000000000000000000000" as Address;
-  const roleReads = roles.map((r) =>
-    useReadContract({
+  const { data: roleReadResults, refetch: refetchRoleReads } = useReadContracts({
+    contracts: roles.map((r) => ({
       abi: ABI.AccessManager,
       address: accessManager,
-      functionName: "hasRole",
-      args: [r.id, (address ?? zero) as Address],
-      query: { enabled: Boolean(address), staleTime: 30_000 },
-    })
-  );
+      functionName: "hasRole" as const,
+      args: [r.id, (address ?? zero) as Address] as const,
+    })),
+    query: { enabled: Boolean(address), staleTime: 30_000 },
+  });
 
   const [grantAddress, setGrantAddress] = useState<string>("");
   const [grantRoleId, setGrantRoleId] = useState<bigint>(ROLE.ADMIN);
@@ -61,18 +61,18 @@ export default function Home() {
   const [isRevoking, setIsRevoking] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
 
-  const membersQueries = roles.map((r) =>
-    useQuery({
+  const membersQueries = useQueries({
+    queries: roles.map((r) => ({
       queryKey: ["role-members", chainId, accessManager, r.id.toString()],
       queryFn: () => fetchRoleMembers(publicClient!, chainId, r.id),
       enabled: Boolean(publicClient),
       staleTime: 60_000,
       refetchInterval: 30_000,
-    })
-  );
+    })),
+  });
 
   async function invalidateRoleRelated() {
-    roleReads.forEach((r) => r.refetch());
+    await refetchRoleReads();
     await queryClient.invalidateQueries({ queryKey: ["role-members", chainId, accessManager] });
   }
 
@@ -130,7 +130,7 @@ export default function Home() {
     const data = encodeFunctionData({
       abi: ABI.AccessManager,
       functionName: "setTargetFunctionRole",
-      args: [managedTarget as Address, selectors as any, scheduleRoleId],
+      args: [managedTarget as Address, selectors as readonly Hex[], scheduleRoleId],
     });
     try {
       setIsScheduling(true);
@@ -154,8 +154,7 @@ export default function Home() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {roles.map((r, idx) => {
-            const data = roleReads[idx].data as [boolean, bigint] | undefined;
-            const isMember = data?.[0];
+            const isMember = (roleReadResults?.[idx] as { result?: [boolean, bigint] } | undefined)?.result?.[0];
             return (
               <Badge key={String(r.id)} variant={isMember ? "default" : "secondary"}>
                 {r.label} {isMember ? "✓" : "x"}
@@ -190,7 +189,7 @@ export default function Home() {
               <div className="text-sm text-muted-foreground">No members</div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {membersQueries[idx].data!.map((m) => (
+                {membersQueries[idx].data!.map((m: { account: string }) => (
                   <Badge key={m.account}>{getKnownAddressLabel(chainId, m.account as Address) ?? m.account}</Badge>
                 ))}
               </div>
@@ -290,7 +289,7 @@ export default function Home() {
                   abi: ABI.AccessManager,
                   address: accessManager,
                   functionName: "setTargetFunctionRole",
-                  args: [managedTarget as Address, selectors as any, scheduleRoleId],
+                  args: [managedTarget as Address, selectors as readonly Hex[], scheduleRoleId],
                 });
                 await publicClient!.waitForTransactionReceipt({ hash });
               }}
