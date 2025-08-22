@@ -26,8 +26,17 @@ NEXT_PUBLIC_DEFAULT_CHAIN_ID=56
 
 Deploy on Render
 
-- Use the included `render.yaml`
-- Set env vars in Render dashboard (RPC URLs, defaults)
+#### Static Site (recommended)
+
+- Build command: `npm ci && npm run build`
+- Publish directory: `out`
+- Set only `NEXT_PUBLIC_*` env vars (used at build time)
+
+#### Node Web Service (SSR)
+
+- Build command: `npm ci && npm run build`
+- Start command: `npm start`
+- No publish directory
 
 ### License
 
