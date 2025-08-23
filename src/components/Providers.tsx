@@ -8,7 +8,7 @@ import {
   lightTheme as rkLightTheme,
 } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import { WagmiProvider, createConfig } from "wagmi";
+import { WagmiProvider, createConfig, cookieStorage, createStorage } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { SUPPORTED_CHAINS, makeTransportsFromEnv } from "@/lib/chains";
 
@@ -30,6 +30,7 @@ const wagmiConfig = createConfig({
   connectors: [injected({ shimDisconnect: true })],
   ssr: true,
   transports: makeTransportsFromEnv(),
+  storage: createStorage({ storage: cookieStorage }),
 });
 
 export default function Providers({ children }: PropsWithChildren) {

@@ -10,6 +10,7 @@ export const ROLE = {
   CL8Y_BRIDGE: BigInt(5),
   PAUSER: BigInt(6),
   BLACKLISTER: BigInt(7),
+  REGISTRAR: BigInt(8),
 } as const;
 
 export type RoleId = (typeof ROLE)[keyof typeof ROLE];

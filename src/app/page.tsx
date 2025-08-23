@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -10,8 +11,8 @@ export default function Home() {
           <CardTitle>CL8Y Guardian Protocol Admin</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <a className="underline" href="/roles">Role Admin</a>
-          <a className="underline" href="/registry">Registry Admin</a>
+          <Link className="underline" href="/roles">Role Admin</Link>
+          <Link className="underline" href="/registry">Registry Admin</Link>
         </CardContent>
       </Card>
     </div>
