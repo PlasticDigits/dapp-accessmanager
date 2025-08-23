@@ -6,6 +6,10 @@ export const ROLE = {
   FACTORY_CREATOR: BigInt(1),
   BRIDGE_OPERATOR: BigInt(2),
   BRIDGE_CANCELLER: BigInt(3),
+  BRIDGE_ROUTER: BigInt(4),
+  CL8Y_BRIDGE: BigInt(5),
+  PAUSER: BigInt(6),
+  BLACKLISTER: BigInt(7),
 } as const;
 
 export type RoleId = (typeof ROLE)[keyof typeof ROLE];

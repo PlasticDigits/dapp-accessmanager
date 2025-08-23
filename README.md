@@ -1,4 +1,4 @@
-AccessManager Admin DApp using Next.js, shadcn/ui, RainbowKit, wagmi/viem.
+CL8Y Guardian Protocol Admin DApp using Next.js, shadcn/ui, RainbowKit, wagmi/viem.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
