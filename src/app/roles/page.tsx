@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContracts } from "wagmi";
 import type { Address, Hex, Abi, AbiFunction } from "viem";
 import { encodeFunctionData, getFunctionSelector, isAddress, decodeErrorResult } from "viem";
@@ -10,24 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { DateTimePicker } from "@/components/ui/datetime-picker";
+ 
+import { X, Plus } from "lucide-react";
 import {
   ROLE,
   getAccessManagerAddress,
   getKnownAddressLabel,
-  ACCESS_MANAGER_ADDRESSES,
-  FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS,
-  CHAIN_REGISTRY_ADDRESS,
-  TOKEN_REGISTRY_ADDRESS,
-  MINT_BURN_ADDRESS,
-  LOCK_UNLOCK_ADDRESS,
-  CL8Y_BRIDGE_ADDRESS,
-  DATASTORE_SET_ADDRESS,
-  GUARD_BRIDGE_ADDRESS,
-  BLACKLIST_BASIC_ADDRESS,
-  TOKEN_RATE_LIMIT_ADDRESS,
-  BRIDGE_ROUTER_ADDRESS,
-  CREATE3_DEPLOYER_ADDRESS,
+  KNOWN_CONTRACTS,
+  type KnownContractKey,
+  getRoleMetaById,
+  ROLES,
 } from "@/lib/contracts";
 import { getAddressExplorerUrl } from "@/lib/chains";
 import { ABI } from "@/lib/abi";
@@ -43,12 +35,7 @@ export default function RolesPage() {
   const { writeContractAsync } = useWriteContract();
 
   const roles = useMemo(
-    () => [
-      { id: ROLE.ADMIN, label: "ADMIN" },
-      { id: ROLE.FACTORY_CREATOR, label: "FACTORY_CREATOR" },
-      { id: ROLE.BRIDGE_OPERATOR, label: "BRIDGE_OPERATOR" },
-      { id: ROLE.BRIDGE_CANCELLER, label: "BRIDGE_CANCELLER" },
-    ],
+    () => ROLES.map((r) => ({ id: r.id, label: r.label })),
     []
   );
 
@@ -63,40 +50,12 @@ export default function RolesPage() {
     query: { enabled: Boolean(address), staleTime: 30_000 },
   });
 
-  const [grantAddress, setGrantAddress] = useState<string>("");
-  const [grantRoleId, setGrantRoleId] = useState<bigint>(ROLE.ADMIN);
-  const [grantDelay, setGrantDelay] = useState<number>(0);
+  
 
-  const [revokeAddress, setRevokeAddress] = useState<string>("");
-  const [revokeRoleId, setRevokeRoleId] = useState<bigint>(ROLE.ADMIN);
-
-  const [managedTarget, setManagedTarget] = useState<string>("");
-  const [selectorsText, setSelectorsText] = useState<string>("");
-  const [scheduleRoleId, setScheduleRoleId] = useState<bigint>(ROLE.ADMIN);
-  const [scheduleAt, setScheduleAt] = useState<Date | undefined>(undefined);
-
-  const [isGranting, setIsGranting] = useState(false);
-  const [isRevoking, setIsRevoking] = useState(false);
-  const [isScheduling, setIsScheduling] = useState(false);
 
   // Known contracts and ABI-driven selector tooling
-  type KnownContractKey =
-    | "AccessManager"
-    | "FactoryTokenCL8yBridged"
-    | "ChainRegistry"
-    | "TokenRegistry"
-    | "MintBurn"
-    | "LockUnlock"
-    | "CL8YBridge"
-    | "DatastoreSetAddress"
-    | "GuardBridge"
-    | "BlacklistBasic"
-    | "TokenRateLimit"
-    | "BridgeRouter"
-    | "Create3Deployer";
 
-  const [selectedKnownKey, setSelectedKnownKey] = useState<KnownContractKey | "">("");
-  const [selectedFunctionSig, setSelectedFunctionSig] = useState<string>("");
+  
 
   function buildSignature(fn: AbiFunction): string {
     const inputs = (fn.inputs ?? []).map((i) => i.type).join(",");
@@ -105,22 +64,8 @@ export default function RolesPage() {
 
   const knownContracts = useMemo(
     () =>
-      [
-        { key: "AccessManager" as KnownContractKey, label: "Access Manager", addressMap: ACCESS_MANAGER_ADDRESSES },
-        { key: "FactoryTokenCL8yBridged" as KnownContractKey, label: "Factory Token CL8y Bridged", addressMap: FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS },
-        { key: "ChainRegistry" as KnownContractKey, label: "Chain Registry", addressMap: CHAIN_REGISTRY_ADDRESS },
-        { key: "TokenRegistry" as KnownContractKey, label: "Token Registry", addressMap: TOKEN_REGISTRY_ADDRESS },
-        { key: "MintBurn" as KnownContractKey, label: "Mint Burn", addressMap: MINT_BURN_ADDRESS },
-        { key: "LockUnlock" as KnownContractKey, label: "Lock Unlock", addressMap: LOCK_UNLOCK_ADDRESS },
-        { key: "CL8YBridge" as KnownContractKey, label: "CL8Y Bridge", addressMap: CL8Y_BRIDGE_ADDRESS },
-        { key: "DatastoreSetAddress" as KnownContractKey, label: "Datastore Set Address", addressMap: DATASTORE_SET_ADDRESS },
-        { key: "GuardBridge" as KnownContractKey, label: "Guard Bridge", addressMap: GUARD_BRIDGE_ADDRESS },
-        { key: "BlacklistBasic" as KnownContractKey, label: "Blacklist Basic", addressMap: BLACKLIST_BASIC_ADDRESS },
-        { key: "TokenRateLimit" as KnownContractKey, label: "Token Rate Limit", addressMap: TOKEN_RATE_LIMIT_ADDRESS },
-        { key: "BridgeRouter" as KnownContractKey, label: "Bridge Router", addressMap: BRIDGE_ROUTER_ADDRESS },
-        { key: "Create3Deployer" as KnownContractKey, label: "Create3 Deployer", addressMap: CREATE3_DEPLOYER_ADDRESS },
-      ]
-        .map((c) => ({ ...c, address: c.addressMap[chainId] as Address | undefined }))
+      (Object.keys(KNOWN_CONTRACTS) as KnownContractKey[])
+        .map((key) => ({ key, ...KNOWN_CONTRACTS[key], address: KNOWN_CONTRACTS[key].addressMap[chainId] as Address | undefined }))
         .filter((c) => Boolean(c.address)),
     [chainId]
   );
@@ -136,24 +81,9 @@ export default function RolesPage() {
     return map;
   }, [knownContracts]);
 
-  const selectedAbi: Abi | undefined = selectedKnownKey
-    ? (ABI as unknown as Record<string, Abi>)[selectedKnownKey]
-    : undefined;
-  const functionItems = useMemo((): Array<{ sig: string; name: string }> => {
-    if (!selectedAbi) return [];
-    return selectedAbi
-      .filter((i): i is AbiFunction => i.type === "function")
-      .map((fn) => ({ sig: buildSignature(fn), name: fn.name }));
-  }, [selectedAbi]);
+  
 
-  function appendSelectorFromSignature(signature: string) {
-    try {
-      const selector = getFunctionSelector(signature) as Hex;
-      const current = selectorsText.trim();
-      const updated = current.length ? `${current} ${selector}` : selector;
-      setSelectorsText(updated);
-    } catch {}
-  }
+  
 
   const membersQueries = useQueries({
     queries: roles.map((r) => ({
@@ -165,14 +95,107 @@ export default function RolesPage() {
     })),
   });
 
-  const revokeRoleIdx = roles.findIndex((r) => r.id === revokeRoleId);
-  const revokeRoleMembers = (
-    revokeRoleIdx >= 0 ? (membersQueries[revokeRoleIdx].data ?? []) : []
-  ) as Array<{ account: string }>;
+  // Admin check for inline actions
+  const isAdmin = useMemo(() => {
+    const adminIdx = roles.findIndex((r) => r.id === ROLE.ADMIN);
+    return Boolean((roleReadResults?.[adminIdx] as { result?: [boolean, bigint] } | undefined)?.result?.[0]);
+  }, [roles, roleReadResults]);
 
-  useEffect(() => {
-    setRevokeAddress("");
-  }, [revokeRoleId]);
+  // Inline per-role UI state
+  const [revokingMap, setRevokingMap] = useState<Record<string, boolean>>({});
+  const [addingOpen, setAddingOpen] = useState<Record<string, boolean>>({});
+  const [addKnownKey, setAddKnownKey] = useState<Record<string, KnownContractKey | "">>({});
+  const [addAddress, setAddAddress] = useState<Record<string, string>>({});
+  const [addingLoading, setAddingLoading] = useState<Record<string, boolean>>({});
+  const [roleErrors, setRoleErrors] = useState<Record<string, string | undefined>>({});
+
+  // Public role id (used to remove selector mapping)
+  const { data: publicRoleId } = useQuery({
+    queryKey: ["public-role-id", chainId, accessManager],
+    queryFn: async () =>
+      (await publicClient!.readContract({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "PUBLIC_ROLE" as const,
+        args: [],
+      })) as bigint,
+    enabled: Boolean(publicClient),
+    staleTime: 120_000,
+  });
+
+  function toggleAdd(roleKey: string) {
+    setAddingOpen((p) => ({ ...p, [roleKey]: !p[roleKey] }));
+    setRoleErrors((p) => ({ ...p, [roleKey]: undefined }));
+  }
+
+  async function handleRevokeInline(roleId: bigint, targetAddress: Address) {
+    const key = roleId.toString();
+    if (!address) {
+      setRoleErrors((p) => ({ ...p, [key]: "Connect wallet to revoke" }));
+      return;
+    }
+    if (!isAdmin) {
+      setRoleErrors((p) => ({ ...p, [key]: "Only ADMIN can revoke roles" }));
+      return;
+    }
+    const itemKey = `${key}-${targetAddress.toLowerCase()}`;
+    setRevokingMap((p) => ({ ...p, [itemKey]: true }));
+    setRoleErrors((p) => ({ ...p, [key]: undefined }));
+    try {
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "revokeRole",
+        args: [roleId, targetAddress],
+      });
+      await publicClient!.waitForTransactionReceipt({ hash });
+      await invalidateRoleRelated();
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setRoleErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+    } finally {
+      setRevokingMap((p) => ({ ...p, [itemKey]: false }));
+    }
+  }
+
+  async function handleGrantInline(roleId: bigint) {
+    const key = roleId.toString();
+    if (!address) {
+      setRoleErrors((p) => ({ ...p, [key]: "Connect wallet to grant" }));
+      return;
+    }
+    if (!isAdmin) {
+      setRoleErrors((p) => ({ ...p, [key]: "Only ADMIN can grant roles" }));
+      return;
+    }
+    const addr = (addAddress[key] || "").trim();
+    if (!isAddress(addr)) {
+      setRoleErrors((p) => ({ ...p, [key]: "Enter a valid address" }));
+      return;
+    }
+    setAddingLoading((p) => ({ ...p, [key]: true }));
+    setRoleErrors((p) => ({ ...p, [key]: undefined }));
+    try {
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "grantRole",
+        args: [roleId, addr as Address, 0n],
+      });
+      await publicClient!.waitForTransactionReceipt({ hash });
+      await invalidateRoleRelated();
+      setAddAddress((p) => ({ ...p, [key]: "" }));
+      setAddKnownKey((p) => ({ ...p, [key]: "" }));
+      setAddingOpen((p) => ({ ...p, [key]: false }));
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setRoleErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+    } finally {
+      setAddingLoading((p) => ({ ...p, [key]: false }));
+    }
+  }
+
+  
 
   async function fetchManagedTargets(): Promise<readonly Address[]> {
     if (!publicClient) return [] as const;
@@ -342,6 +365,11 @@ export default function RolesPage() {
   const [callInputs, setCallInputs] = useState<Record<string, string[]>>({});
   const [callLoading, setCallLoading] = useState<Record<string, boolean>>({});
   const [callErrors, setCallErrors] = useState<Record<string, string | undefined>>({});
+  const [selectorRemoveBusy, setSelectorRemoveBusy] = useState<Record<string, boolean>>({});
+  const [selectorAddOpen, setSelectorAddOpen] = useState<Record<string, boolean>>({});
+  const [selectorAddSigs, setSelectorAddSigs] = useState<Record<string, string[]>>({});
+  const [selectorAddBusy, setSelectorAddBusy] = useState<Record<string, boolean>>({});
+  const [selectorErrors, setSelectorErrors] = useState<Record<string, string | undefined>>({});
 
   function toggleCallPanel(key: string) {
     setOpenCalls((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -456,76 +484,122 @@ export default function RolesPage() {
     await queryClient.invalidateQueries({ queryKey: ["role-members", chainId, accessManager] });
   }
 
-  async function handleGrant() {
-    if (!address) return;
-    if (!isAddress(grantAddress)) return;
+  async function invalidateTargetSelectors() {
+    await queryClient.invalidateQueries({ queryKey: ["target-role-selectors", chainId, accessManager] });
+  }
+
+  function buildFunctionItemsForTarget(target: Address): Array<{ sig: string; name: string }> {
+    const abi = abiByAddress[target.toLowerCase()];
+    if (!abi) return [];
+    return abi.filter((i): i is AbiFunction => i.type === "function").map((fn) => ({ sig: buildSignature(fn), name: fn.name }));
+  }
+
+  async function handleRemoveSelector(target: Address, roleId: bigint, selector: Hex) {
+    const key = `${target.toLowerCase()}-${roleId.toString()}`;
+    if (!address) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Connect wallet to remove" }));
+      return;
+    }
+    if (!isAdmin) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Only ADMIN can modify selectors" }));
+      return;
+    }
+    if (!publicRoleId) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Public role not loaded yet" }));
+      return;
+    }
+    const itemKey = `${key}-${selector.toLowerCase()}`;
+    setSelectorRemoveBusy((p) => ({ ...p, [itemKey]: true }));
+    setSelectorErrors((p) => ({ ...p, [key]: undefined }));
     try {
-      setIsGranting(true);
+      await publicClient!.simulateContract({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "setTargetFunctionRole",
+        args: [target, [selector], publicRoleId],
+        account: address,
+      });
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setSelectorErrors((p) => ({ ...p, [key]: msg }));
+      setSelectorRemoveBusy((p) => ({ ...p, [itemKey]: false }));
+      return;
+    }
+    try {
       const hash = await writeContractAsync({
         abi: ABI.AccessManager,
         address: accessManager,
-        functionName: "grantRole",
-        args: [grantRoleId, grantAddress as Address, BigInt(Math.max(0, grantDelay))],
+        functionName: "setTargetFunctionRole",
+        args: [target, [selector], publicRoleId],
       });
       await publicClient!.waitForTransactionReceipt({ hash });
-      await invalidateRoleRelated();
-      setGrantAddress("");
+      await invalidateTargetSelectors();
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setSelectorErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
-      setIsGranting(false);
+      setSelectorRemoveBusy((p) => ({ ...p, [itemKey]: false }));
     }
   }
 
-  async function handleRevoke() {
-    if (!address) return;
-    if (!isAddress(revokeAddress)) return;
+  async function handleAddSelectors(target: Address, roleId: bigint, signatures: string[]) {
+    const key = `${target.toLowerCase()}-${roleId.toString()}`;
+    if (!address) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Connect wallet to add" }));
+      return;
+    }
+    if (!isAdmin) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Only ADMIN can modify selectors" }));
+      return;
+    }
+    const sigs = (signatures || []).filter(Boolean);
+    if (sigs.length === 0) {
+      setSelectorErrors((p) => ({ ...p, [key]: "Select at least one function" }));
+      return;
+    }
+    let selectors: Hex[] = [];
     try {
-      setIsRevoking(true);
+      selectors = sigs.map((s) => getFunctionSelector(s) as Hex);
+    } catch {
+      setSelectorErrors((p) => ({ ...p, [key]: "Invalid function signature" }));
+      return;
+    }
+    setSelectorAddBusy((p) => ({ ...p, [key]: true }));
+    setSelectorErrors((p) => ({ ...p, [key]: undefined }));
+    try {
+      await publicClient!.simulateContract({
+        abi: ABI.AccessManager,
+        address: accessManager,
+        functionName: "setTargetFunctionRole",
+        args: [target, selectors as readonly Hex[], roleId],
+        account: address,
+      });
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setSelectorErrors((p) => ({ ...p, [key]: msg }));
+      setSelectorAddBusy((p) => ({ ...p, [key]: false }));
+      return;
+    }
+    try {
       const hash = await writeContractAsync({
         abi: ABI.AccessManager,
         address: accessManager,
-        functionName: "revokeRole",
-        args: [revokeRoleId, revokeAddress as Address],
+        functionName: "setTargetFunctionRole",
+        args: [target, selectors as readonly Hex[], roleId],
       });
       await publicClient!.waitForTransactionReceipt({ hash });
-      await invalidateRoleRelated();
-      setRevokeAddress("");
+      await invalidateTargetSelectors();
+      setSelectorAddSigs((p) => ({ ...p, [key]: [] }));
+      setSelectorAddOpen((p) => ({ ...p, [key]: false }));
+    } catch (err) {
+      const msg = extractReadableRevert(err, [ABI.AccessManager]);
+      setSelectorErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
-      setIsRevoking(false);
+      setSelectorAddBusy((p) => ({ ...p, [key]: false }));
     }
   }
 
-  function parseSelectors(text: string): Hex[] {
-    return text
-      .split(/[\,\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => (s.startsWith("0x") ? s : ("0x" + s)) as Hex);
-  }
-
-  async function handleScheduleSetTargetFunctionRole() {
-    if (!address) return;
-    if (!isAddress(managedTarget)) return;
-    const selectors = parseSelectors(selectorsText);
-    if (selectors.length === 0) return;
-    const data = encodeFunctionData({
-      abi: ABI.AccessManager,
-      functionName: "setTargetFunctionRole",
-      args: [managedTarget as Address, selectors as readonly Hex[], scheduleRoleId],
-    });
-    try {
-      setIsScheduling(true);
-      const hash = await writeContractAsync({
-        abi: ABI.AccessManager,
-        address: accessManager,
-        functionName: "schedule",
-        args: [accessManager, data, BigInt(Math.floor(((scheduleAt ?? new Date()).getTime()) / 1000))],
-      });
-      await publicClient!.waitForTransactionReceipt({ hash });
-    } finally {
-      setIsScheduling(false);
-    }
-  }
-
+  
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 grid gap-6">
       <Card>
@@ -544,225 +618,103 @@ export default function RolesPage() {
         </CardContent>
       </Card>
 
-      {roles.map((r, idx) => (
-        <Card key={String(r.id)}>
-          <CardHeader>
-            <CardTitle>{r.label} Members</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            {(membersQueries[idx].data ?? []).length === 0 ? (
-              <div className="text-sm text-muted-foreground">No members</div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {membersQueries[idx].data!.map((m: { account: string }) => {
-                  const label = getKnownAddressLabel(chainId, m.account as Address) ?? m.account;
-                  const href = getAddressExplorerUrl(chainId, m.account as Address);
-                  return (
-                    <Badge key={m.account}>
-                      <a href={href} target="_blank" rel="noopener noreferrer">
-                        {label}
-                      </a>
-                    </Badge>
-                  );
-                })}
+      <Card>
+        <CardHeader>
+          <CardTitle>Role Members</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {roles.map((r, idx) => (
+            <div key={String(r.id)} className="grid gap-2">
+              <div className="text-sm font-medium">{r.label} Members</div>
+              <div className="text-xs text-muted-foreground">
+                {(() => getRoleMetaById(r.id)?.description)()}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Grant Role</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <div className="grid gap-1.5">
-            <Label>Role</Label>
-            <Select value={grantRoleId.toString()} onChange={(e) => setGrantRoleId(BigInt(e.target.value))}>
-              {roles.map((r) => (
-                <option key={String(r.id)} value={r.id.toString()}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="grid gap-1.5 md:col-span-2">
-            <Label htmlFor="grantAddress">Address</Label>
-            <Input id="grantAddress" placeholder="0x..." value={grantAddress} onChange={(e) => setGrantAddress(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="grantDelay">Exec Delay (sec)</Label>
-            <Input id="grantDelay" type="number" min={0} value={grantDelay} onChange={(e) => setGrantDelay(Number(e.target.value))} />
-          </div>
-          <div className="flex items-end gap-2">
-            <Button onClick={handleGrant} disabled={!address || isGranting}>
-              {isGranting ? "Granting..." : "Grant"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Revoke Role</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          <div className="grid gap-1.5">
-            <Label>Role</Label>
-            <Select value={revokeRoleId.toString()} onChange={(e) => setRevokeRoleId(BigInt(e.target.value))}>
-              {roles.map((r) => (
-                <option key={String(r.id)} value={r.id.toString()}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="revokeAddress">Member Address</Label>
-            <Select
-              id="revokeAddress"
-              value={revokeAddress}
-              onChange={(e) => setRevokeAddress(e.target.value)}
-              disabled={revokeRoleMembers.length === 0}
-            >
-              <option value="">
-                {revokeRoleMembers.length === 0 ? "No members" : "Select member…"}
-              </option>
-              {revokeRoleMembers.map((m) => {
-                const label = getKnownAddressLabel(chainId, m.account as Address) ?? (m.account as string);
-                return (
-                  <option key={m.account} value={m.account}>
-                    {label}
-                  </option>
-                );
-              })}
-            </Select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Button onClick={handleRevoke} disabled={!address || isRevoking || !isAddress(revokeAddress)}>
-              {isRevoking ? "Revoking..." : "Revoke"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>setTargetFunctionRole (Immediate)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <div className="grid gap-1.5 md:col-span-4">
-            <Label>Known Contract</Label>
-            <div className="grid gap-2 md:grid-cols-3">
-              <Select
-                value={selectedKnownKey}
-                onChange={(e) => {
-                  const key = e.target.value as KnownContractKey | "";
-                  setSelectedKnownKey(key);
-                  setSelectedFunctionSig("");
-                  const found = knownContracts.find((c) => c.key === key);
-                  if (found?.address) setManagedTarget(found.address);
-                }}
-              >
-                <option value="">Custom address…</option>
-                {knownContracts.map((c) => (
-                  <option key={c.key} value={c.key}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                value={selectedFunctionSig}
-                onChange={(e) => setSelectedFunctionSig(e.target.value)}
-                disabled={!selectedKnownKey}
-              >
-                <option value="">Select function…</option>
-                {functionItems.map((f) => (
-                  <option key={f.sig} value={f.sig}>
-                    {f.sig}
-                  </option>
-                ))}
-              </Select>
-              <div className="flex items-end">
-                <Button
+              <div className="flex flex-wrap items-center gap-2">
+                {(membersQueries[idx].data ?? []).length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No members</div>
+                ) : (
+                  membersQueries[idx].data!.map((m: { account: string }) => {
+                    const label = getKnownAddressLabel(chainId, m.account as Address) ?? m.account;
+                    const href = getAddressExplorerUrl(chainId, m.account as Address);
+                    const itemKey = `${r.id.toString()}-${(m.account as string).toLowerCase()}`;
+                    const busy = Boolean(revokingMap[itemKey]);
+                    return (
+                      <Badge key={m.account} className="inline-flex items-center gap-1">
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
+                          {label}
+                        </a>
+                        <button
+                          type="button"
+                          aria-label="Revoke role"
+                          className="ml-1 inline-flex items-center text-xs hover:text-red-600"
+                          onClick={() => handleRevokeInline(r.id, m.account as Address)}
+                          disabled={busy}
+                          title="Revoke"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+                <button
                   type="button"
-                  onClick={() => selectedFunctionSig && appendSelectorFromSignature(selectedFunctionSig)}
-                  disabled={!selectedFunctionSig}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-sm hover:bg-accent"
+                  onClick={() => toggleAdd(r.id.toString())}
+                  title="Add member"
                 >
-                  Add selector
-                </Button>
+                  <Plus className="w-4 h-4" /> Add
+                </button>
               </div>
+              {addingOpen[r.id.toString()] && (
+                <div className="mt-2 grid gap-2 md:grid-cols-3">
+                  <div className="grid gap-1.5">
+                    <Label>Known Contract</Label>
+                    <Select
+                      value={addKnownKey[r.id.toString()] ?? ""}
+                      onChange={(e) => {
+                        const key = r.id.toString();
+                        const val = e.target.value as KnownContractKey | "";
+                        setAddKnownKey((p) => ({ ...p, [key]: val }));
+                        const found = knownContracts.find((c) => c.key === val);
+                        if (found?.address) {
+                          setAddAddress((p) => ({ ...p, [key]: found.address as string }));
+                        }
+                      }}
+                    >
+                      <option value="">Custom address…</option>
+                      {knownContracts.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5 md:col-span-1">
+                    <Label htmlFor={`add-${r.id.toString()}`}>Address</Label>
+                    <Input
+                      id={`add-${r.id.toString()}`}
+                      placeholder="0x..."
+                      value={addAddress[r.id.toString()] ?? ""}
+                      onChange={(e) => setAddAddress((p) => ({ ...p, [r.id.toString()]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Button
+                      onClick={() => handleGrantInline(r.id)}
+                      disabled={Boolean(addingLoading[r.id.toString()])}
+                    >
+                      {addingLoading[r.id.toString()] ? "Granting..." : "Grant"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {roleErrors[r.id.toString()] && (
+                <div className="text-xs text-red-600">{roleErrors[r.id.toString()]}</div>
+              )}
+              {idx < roles.length - 1 && <hr className="my-2" />}
             </div>
-          </div>
-          <div className="grid gap-1.5 md:col-span-2">
-            <Label htmlFor="managedTarget">Managed Target</Label>
-            <Input id="managedTarget" placeholder="0x..." value={managedTarget} onChange={(e) => setManagedTarget(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Selectors (0x..., comma/space separated)</Label>
-            <Input placeholder="0xabcdef01 0x12345678" value={selectorsText} onChange={(e) => setSelectorsText(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Role</Label>
-            <Select value={scheduleRoleId.toString()} onChange={(e) => setScheduleRoleId(BigInt(e.target.value))}>
-              {roles.map((r) => (
-                <option key={String(r.id)} value={r.id.toString()}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="flex items-end gap-2 md:col-span-4">
-            <Button
-              onClick={async () => {
-                if (!address || !isAddress(managedTarget)) return;
-                const selectors = parseSelectors(selectorsText);
-                if (selectors.length === 0) return;
-                const hash = await writeContractAsync({
-                  abi: ABI.AccessManager,
-                  address: accessManager,
-                  functionName: "setTargetFunctionRole",
-                  args: [managedTarget as Address, selectors as readonly Hex[], scheduleRoleId],
-                });
-                await publicClient!.waitForTransactionReceipt({ hash });
-              }}
-              disabled={!address}
-            >
-              Execute Now
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedule setTargetFunctionRole</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-4">
-          <div className="grid gap-1.5 md:col-span-2">
-            <Label htmlFor="managedTarget2">Managed Target</Label>
-            <Input id="managedTarget2" placeholder="0x..." value={managedTarget} onChange={(e) => setManagedTarget(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Selectors (0x..., comma/space separated)</Label>
-            <Input placeholder="0xabcdef01 0x12345678" value={selectorsText} onChange={(e) => setSelectorsText(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Role</Label>
-            <Select value={scheduleRoleId.toString()} onChange={(e) => setScheduleRoleId(BigInt(e.target.value))}>
-              {roles.map((r) => (
-                <option key={String(r.id)} value={r.id.toString()}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <DateTimePicker label="When (local)" value={scheduleAt} onChange={setScheduleAt} />
-          <div className="flex items-end gap-2 md:col-span-4">
-            <Button onClick={handleScheduleSetTargetFunctionRole} disabled={!address || isScheduling}>
-              {isScheduling ? "Scheduling..." : "Schedule Operation"}
-            </Button>
-          </div>
+          ))}
         </CardContent>
       </Card>
 
@@ -771,11 +723,23 @@ export default function RolesPage() {
           <CardTitle>Function Selectors by Role</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {!managedTargetsQuery.data || managedTargetsQuery.data.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No managed targets</div>
-          ) : (
-            <div className="grid gap-4">
-              {managedTargetsQuery.data.map((t) => {
+          <div className="grid gap-4">
+            {(!managedTargetsQuery.data || managedTargetsQuery.data.length === 0) && (
+              <div className="grid gap-2">
+                <div className="font-medium">No managed targets configured</div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {roles.map((r) => (
+                    <div key={`no-target-${r.id.toString()}`} className="border rounded-md p-2">
+                      <div className="text-sm mb-2 flex items-center gap-2">
+                        <span className="text-muted-foreground">Role: {r.label}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">No selectors</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(managedTargetsQuery.data ?? []).map((t) => {
                 const entry = targetSelectorsQueries.find((q) => (q.data as TargetSelectorsByRole | undefined)?.target?.toLowerCase() === (t as Address).toLowerCase());
                 const label = getKnownAddressLabel(chainId, t as Address) ?? (t as Address);
                 const href = getAddressExplorerUrl(chainId, t as Address);
@@ -783,6 +747,16 @@ export default function RolesPage() {
                   <div key={t as string} className="grid gap-2">
                     <div className="font-medium">
                       <a href={href} target="_blank" rel="noopener noreferrer">{label}</a>
+                    </div>
+                    <div className="text-xs flex items-center gap-2">
+                      <span className={isAdmin ? "text-green-600" : "text-red-600"}>{isAdmin ? "✓" : "x"}</span>
+                      <span>
+                        {address
+                          ? isAdmin
+                            ? "Connected wallet can manage this target"
+                            : "Connected wallet cannot manage this target"
+                          : "Connect wallet to manage this target"}
+                      </span>
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
                       {roles.map((r) => {
@@ -806,21 +780,37 @@ export default function RolesPage() {
                                   const key = `${(t as Address).toLowerCase()}-${(sel as string).toLowerCase()}`;
                                   const canInteract = allowed && Boolean(fn);
                                   return (
-                                    <div key={sel as string} className="border rounded p-2 overflow-x-auto">
-                                      <div className="flex items-center justify-between">
+                                    <div key={sel as string} className="border rounded p-2">
+                                      <div className="relative">
+                                        <div className="pr-12 overflow-x-auto">
+                                          <div className="flex items-center justify-between">
+                                            <button
+                                              type="button"
+                                              className={`text-left ${canInteract ? "underline" : "text-muted-foreground cursor-not-allowed"}`}
+                                              onClick={() => canInteract && toggleCallPanel(key)}
+                                              disabled={!canInteract}
+                                            >
+                                              {sig ? sig : (sel as string)}
+                                            </button>
+                                            {canInteract && (
+                                              <Button size="sm" variant="outline" onClick={() => toggleCallPanel(key)}>
+                                                {openCalls[key] ? "Hide" : "Show"}
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-card" />
+                                        <div className="pointer-events-none absolute right-10 top-0 h-full w-14 bg-gradient-to-l from-card to-transparent" />
                                         <button
                                           type="button"
-                                          className={`text-left ${canInteract ? "underline" : "text-muted-foreground cursor-not-allowed"}`}
-                                          onClick={() => canInteract && toggleCallPanel(key)}
-                                          disabled={!canInteract}
+                                          aria-label="Remove selector"
+                                          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 inline-flex items-center text-xs hover:text-red-600"
+                                          onClick={() => handleRemoveSelector(t as Address, r.id, sel as Hex)}
+                                          disabled={!isAdmin || Boolean(selectorRemoveBusy[`${(t as Address).toLowerCase()}-${r.id.toString()}-${(sel as string).toLowerCase()}`])}
+                                          title="Remove"
                                         >
-                                          {sig ? sig : (sel as string)}
+                                          <X className="w-3 h-3" />
                                         </button>
-                                        {canInteract && (
-                                          <Button size="sm" variant="outline" onClick={() => toggleCallPanel(key)}>
-                                            {openCalls[key] ? "Hide" : "Show"}
-                                          </Button>
-                                        )}
                                       </div>
                                       {canInteract && openCalls[key] && fn && (
                                         <div className="mt-3 grid gap-2">
@@ -866,6 +856,59 @@ export default function RolesPage() {
                                 })}
                               </div>
                             )}
+                            {/* Add selector section */}
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-sm hover:bg-accent"
+                                onClick={() => {
+                                  const addKey = `${(t as Address).toLowerCase()}-${r.id.toString()}`;
+                                  setSelectorAddOpen((p) => ({ ...p, [addKey]: !p[addKey] }));
+                                }}
+                                title="Add selector"
+                              >
+                                <Plus className="w-4 h-4" /> Add
+                              </button>
+                            </div>
+                            {(() => {
+                              const addKey = `${(t as Address).toLowerCase()}-${r.id.toString()}`;
+                              const items = buildFunctionItemsForTarget(t as Address);
+                              return selectorAddOpen[addKey] ? (
+                                <div className="mt-2 grid gap-2 md:grid-cols-3">
+                                  <div className="grid gap-1.5 md:col-span-2">
+                                    <Label>Function</Label>
+                                    <Select
+                                      multiple
+                                      value={selectorAddSigs[addKey] ?? []}
+                                      onChange={(e) =>
+                                        setSelectorAddSigs((p) => ({
+                                          ...p,
+                                          [addKey]: Array.from(e.target.selectedOptions).map((o) => o.value),
+                                        }))
+                                      }
+                                      disabled={items.length === 0}
+                                    >
+                                      {items.map((f) => (
+                                        <option key={f.sig} value={f.sig}>
+                                          {f.sig}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  </div>
+                                  <div className="flex items-end gap-2">
+                                    <Button
+                                      onClick={() => handleAddSelectors(t as Address, r.id, selectorAddSigs[addKey] ?? [])}
+                                      disabled={!isAdmin || Boolean(selectorAddBusy[addKey]) || !((selectorAddSigs[addKey] ?? []).length)}
+                                    >
+                                      {selectorAddBusy[addKey] ? "Adding..." : "Add"}
+                                    </Button>
+                                  </div>
+                                  {selectorErrors[addKey] && (
+                                    <div className="md:col-span-3 text-xs text-red-600">{selectorErrors[addKey]}</div>
+                                  )}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         );
                       })}
@@ -874,7 +917,6 @@ export default function RolesPage() {
                 );
               })}
             </div>
-          )}
         </CardContent>
       </Card>
     </div>
