@@ -13,6 +13,7 @@ export default function Home() {
         <CardContent className="grid gap-3">
           <Link className="underline" href="/roles">Role Admin</Link>
           <Link className="underline" href="/registry">Registry Admin</Link>
+          <Link className="underline" href="/bridge">Bridge</Link>
         </CardContent>
       </Card>
     </div>

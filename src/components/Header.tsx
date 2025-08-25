@@ -21,6 +21,9 @@ export function Header() {
             <Link href="/registry" className="underline">
               Registry
             </Link>
+            <Link href="/bridge" className="underline">
+              Bridge
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-2">
