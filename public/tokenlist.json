@@ -1,0 +1,248 @@
+{
+  "name": "TidalDex Default List",
+  "timestamp": "2025-07-18T00:00:00Z",
+  "version": {
+    "major": 7,
+    "minor": 1,
+    "patch": 0
+  },
+  "tags": {},
+  "logoURI": "https://tidaldex.com/logo.png",
+  "keywords": ["TidalDex", "default"],
+  "tokens": [
+    {
+      "name": "WBNB Token",
+      "symbol": "WBNB",
+      "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.png"
+    },
+
+    {
+      "name": "Tether USD",
+      "symbol": "USDT",
+      "address": "0x55d398326f99059fF775485246999027B3197955",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x55d398326f99059ff775485246999027b3197955.png"
+    },
+
+    {
+      "name": "CZBlue",
+      "symbol": "CZB",
+      "address": "0xD963b2236D227a0302E19F2f9595F424950dc186",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0xD963b2236D227a0302E19F2f9595F424950dc186.png"
+    },
+    {
+      "name": "CZUSD",
+      "symbol": "CZUSD",
+      "address": "0xe68b79e51bf826534ff37aa9cee71a3842ee9c70",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0xe68b79e51bf826534ff37aa9cee71a3842ee9c70.png"
+    },
+    {
+      "name": "Bitcoin",
+      "symbol": "BTC",
+      "address": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c.png"
+    },
+    {
+      "name": "Ethereum",
+      "symbol": "ETH",
+      "address": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x2170Ed0880ac9A755fd29B2688956BD959F933F8.png"
+    },
+    {
+      "name": "Baby Doge",
+      "symbol": "BDOGE",
+      "address": "0xc748673057861a797275CD8A068AbB95A902e8de",
+      "chainId": 56,
+      "decimals": 9,
+      "logoURI": "https://tidaldex.com/images/tokens/0xc748673057861a797275CD8A068AbB95A902e8de.png"
+    },
+    {
+      "name": "Dogecoin",
+      "symbol": "DOGE",
+      "address": "0xbA2aE424d960c26247Dd6c32edC70B295c744C43",
+      "chainId": 56,
+      "decimals": 8,
+      "logoURI": "https://tidaldex.com/images/tokens/0xbA2aE424d960c26247Dd6c32edC70B295c744C43.png"
+    },
+    {
+      "name": "Seedify.fund",
+      "symbol": "SFUND",
+      "address": "0x477bC8d23c634C154061869478bce96BE6045D12",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x477bC8d23c634C154061869478bce96BE6045D12.png"
+    },
+    {
+      "name": "Pepe",
+      "symbol": "PEPE",
+      "address": "0x25d887Ce7a35172C62FeBFD67a1856F20FaEbB00",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x25d887Ce7a35172C62FeBFD67a1856F20FaEbB00.png"
+    },
+    {
+      "name": "Tron",
+      "symbol": "TRX",
+      "address": "0xCE7de646e7208a4Ef112cb6ed5038FA6cC6b12e3",
+      "chainId": 56,
+      "decimals": 6,
+      "logoURI": "https://tidaldex.com/images/tokens/0xCE7de646e7208a4Ef112cb6ed5038FA6cC6b12e3.png"
+    },
+    {
+      "name": "Shiba Inu",
+      "symbol": "SHIB",
+      "address": "0x2859e4544C4bB03966803b044A93563Bd2D0DD4D",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x2859e4544C4bB03966803b044A93563Bd2D0DD4D.png"
+    },
+    {
+      "name": "LiteCoin",
+      "symbol": "LTC",
+      "address": "0x4338665CBB7B2485A8855A139b75D5e34AB0DB94",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x4338665CBB7B2485A8855A139b75D5e34AB0DB94.png"
+    },
+    {
+      "name": "Bitcoin Cash",
+      "symbol": "BCH",
+      "address": "0x8fF795a6F4D97E7887C79beA79aba5cc76444aDf",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x8fF795a6F4D97E7887C79beA79aba5cc76444aDf.png"
+    },
+    {
+      "name": "IoTeX",
+      "symbol": "IOTX",
+      "address": "0x9678E42ceBEb63F23197D726B29b1CB20d0064E5",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x9678E42ceBEb63F23197D726B29b1CB20d0064E5.png"
+    },
+    {
+      "name": "Ethereum Classic",
+      "symbol": "ETC",
+      "address": "0x3d6545b08693daE087E957cb1180ee38B9e3c25E",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x3d6545b08693daE087E957cb1180ee38B9e3c25E.png"
+    },
+    {
+      "name": "ApeNFT",
+      "symbol": "NFT",
+      "address": "0x1fC9004eC7E5722891f5f38baE7678efCB11d34D",
+      "chainId": 56,
+      "decimals": 6,
+      "logoURI": "https://tidaldex.com/images/tokens/0x1fC9004eC7E5722891f5f38baE7678efCB11d34D.png"
+    },
+    {
+      "name": "MultiverseX",
+      "symbol": "EGLD",
+      "address": "0xbF7c81FFF98BbE61B40Ed186e4AfD6DDd01337fe",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0xbF7c81FFF98BbE61B40Ed186e4AfD6DDd01337fe.png"
+    },
+    {
+      "name": "BitTorrent",
+      "symbol": "BTT",
+      "address": "0x352Cb5E19b12FC216548a2677bD0fce83BaE434B",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x352Cb5E19b12FC216548a2677bD0fce83BaE434B.png"
+    },
+    {
+      "name": "Alutra",
+      "symbol": "ALU",
+      "address": "0x8263CD1601FE73C066bf49cc09841f35348e3be0",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x8263CD1601FE73C066bf49cc09841f35348e3be0.png"
+    },
+    {
+      "name": "CatCoin",
+      "symbol": "CAT",
+      "address": "0x59F4F336Bf3D0C49dBfbA4A74eBD2a6aCE40539A",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x59F4F336Bf3D0C49dBfbA4A74eBD2a6aCE40539A.png"
+    },
+    {
+      "name": "GreenMine",
+      "symbol": "GEM",
+      "address": "0x701F1ed50Aa5e784B8Fb89d1Ba05cCCd627839a7",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x701F1ed50Aa5e784B8Fb89d1Ba05cCCd627839a7.png"
+    },
+    {
+      "name": "Lucky Rabbit Token",
+      "symbol": "LRT",
+      "address": "0xE95412D2d374B957ca7f8d96ABe6b6c1148fA438",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0xE95412D2d374B957ca7f8d96ABe6b6c1148fA438.png"
+    },
+    {
+      "name": "CZRed",
+      "symbol": "CZR",
+      "address": "0x5cd0c2C744caF04cda258Efc6558A3Ed3defE97b",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x5cd0c2C744caF04cda258Efc6558A3Ed3defE97b.png"
+    },
+    {
+      "name": "CZFarm",
+      "symbol": "CZF",
+      "address": "0x7c1608C004F20c3520f70b924E2BfeF092dA0043",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x7c1608C004F20c3520f70b924E2BfeF092dA0043.png"
+    },
+    {
+      "name": "TerraClassicUSD",
+      "symbol": "USTC",
+      "address": "0x23396cF899Ca06c4472205fC903bDB4de249D6fC",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x23396cF899Ca06c4472205fC903bDB4de249D6fC.png"
+    },
+    {
+      "name": "USTC Wormhole",
+      "symbol": "USTC-wh",
+      "address": "0x3d4350cD54aeF9f9b2C29435e0fa809957B3F30a",
+      "chainId": 56,
+      "decimals": 6,
+      "logoURI": "https://tidaldex.com/images/tokens/0x3d4350cD54aeF9f9b2C29435e0fa809957B3F30a.png"
+    },
+    {
+      "name": "CeramicLiberty.com",
+      "symbol": "CL8Y",
+      "address": "0x8F452a1fdd388A45e1080992eFF051b4dd9048d2",
+      "chainId": 56,
+      "decimals": 18,
+      "logoURI": "https://tidaldex.com/images/tokens/0x8F452a1fdd388A45e1080992eFF051b4dd9048d2.png"
+    },
+    {
+      "name": "Alpha Lunc Universe",
+      "symbol": "ALPHA",
+      "address": "0xd5fD8f461102b3B797adA37f60B29BfE802d117f",
+      "chainId": 56,
+      "decimals": 6,
+      "logoURI": "https://tidaldex.com/images/tokens/0xd5fD8f461102b3B797adA37f60B29BfE802d117f.png"
+    }
+  ]
+}
