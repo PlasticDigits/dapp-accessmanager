@@ -4,14 +4,14 @@ import { bsc, bscTestnet, opBNBTestnet } from "viem/chains";
 export const ROLE = {
   ADMIN: BigInt(0),
   FACTORY_CREATOR: BigInt(1),
-  BRIDGE_OPERATOR: BigInt(2),
-  BRIDGE_CANCELLER: BigInt(3),
-  BRIDGE_ROUTER: BigInt(4),
-  CL8Y_BRIDGE: BigInt(5),
+  WITHDRAW_APPROVE: BigInt(2),
+  WITHDRAW_CANCEL: BigInt(3),
+  BRIDGE_TRANSFER: BigInt(4),
+  MINTLOCK: BigInt(5),
   PAUSER: BigInt(6),
-  BLACKLISTER: BigInt(7),
+  CONFIG: BigInt(7),
   REGISTRAR: BigInt(8),
-  GUARDIAN_MODULE_MANAGER: BigInt(9),
+  WITHDRAW_REENABLE: BigInt(9),
 } as const;
 
 export type RoleId = (typeof ROLE)[keyof typeof ROLE];
@@ -41,32 +41,32 @@ export const ROLES: readonly RoleMeta[] = [
       "Temporary role used only during deployment/initialization of factories. Revoke after use.",
   },
   {
-    key: "BRIDGE_OPERATOR",
-    id: ROLE.BRIDGE_OPERATOR,
-    label: "BRIDGE_OPERATOR",
+    key: "WITHDRAW_APPROVE",
+    id: ROLE.WITHDRAW_APPROVE,
+    label: "WITHDRAW_APPROVE",
     description:
-      "Authorized to perform bridge operations via AccessManager-approved function selectors.",
+      "Authorized to approve withdraws for claiming on the CL8Y Bridge.",
   },
   {
-    key: "BRIDGE_CANCELLER",
-    id: ROLE.BRIDGE_CANCELLER,
-    label: "BRIDGE_CANCELLER",
+    key: "WITHDRAW_CANCEL",
+    id: ROLE.WITHDRAW_CANCEL,
+    label: "WITHDRAW_CANCEL",
     description:
-      "Authorized to cancel scheduled or in-flight bridge operations when necessary.",
+      "Authorized to cancel pending withdraws - approved, but not claimed on the CL8Y Bridge",
   },
   {
-    key: "BRIDGE_ROUTER",
-    id: ROLE.BRIDGE_ROUTER,
-    label: "BRIDGE_ROUTER",
+    key: "BRIDGE_TRANSFER",
+    id: ROLE.BRIDGE_TRANSFER,
+    label: "BRIDGE_TRANSFER",
     description:
-      "Held by the BridgeRouter contract. Requires permissions to call deposit/withdraw on the CL8YBridge.",
+      "Withdraw/deposit permissions from CL8Y Bridge. Needed by the Bridge Router contract.",
   },
   {
-    key: "CL8Y_BRIDGE",
-    id: ROLE.CL8Y_BRIDGE,
-    label: "CL8Y_BRIDGE",
+    key: "MINTLOCK",
+    id: ROLE.MINTLOCK,
+    label: "MINTLOCK",
     description:
-      "Held by the CL8YBridge contract. Requires permissions on MintBurn for mint/burn and LockUnlock for lock/unlock.",
+      "Can call mint/burn on MintBurn and lock/unlock on LockUnlock. Required by CL8Y Bridge contract.",
   },
   {
     key: "PAUSER",
@@ -75,11 +75,11 @@ export const ROLES: readonly RoleMeta[] = [
     description: "Can pause/unpause protected contracts to mitigate incidents.",
   },
   {
-    key: "BLACKLISTER",
-    id: ROLE.BLACKLISTER,
-    label: "BLACKLISTER",
+    key: "CONFIG",
+    id: ROLE.CONFIG,
+    label: "CONFIG",
     description:
-      "Manages blacklist entries to restrict malicious or sanctioned addresses.",
+      "Add/remove modules and manage them for the GuardBridge, such as Blacklist and RateLimit.",
   },
   {
     key: "REGISTRAR",
@@ -88,10 +88,10 @@ export const ROLES: readonly RoleMeta[] = [
     description: "Manages Chain/Token Registry entries and related metadata.",
   },
   {
-    key: "GUARDIAN_MODULE_MANAGER",
-    id: ROLE.GUARDIAN_MODULE_MANAGER,
-    label: "GUARDIAN_MODULE_MANAGER",
-    description: "Add/Remove the GuardBridge modules.",
+    key: "WITHDRAW_REENABLE",
+    id: ROLE.WITHDRAW_REENABLE,
+    label: "WITHDRAW_REENABLE",
+    description: "Reenable canceled withdraws",
   },
 ] as const;
 

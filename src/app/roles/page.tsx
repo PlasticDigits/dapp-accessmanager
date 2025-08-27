@@ -371,6 +371,27 @@ export default function RolesPage() {
   const [selectorAddBusy, setSelectorAddBusy] = useState<Record<string, boolean>>({});
   const [selectorErrors, setSelectorErrors] = useState<Record<string, string | undefined>>({});
 
+  // Export / Import state
+  const [exporting, setExporting] = useState(false);
+  const [importJsonText, setImportJsonText] = useState<string>("");
+  type MemberRef = { address?: Address; knownKey?: KnownContractKey };
+  type TargetRef = { address?: Address; knownKey?: KnownContractKey };
+  type ImportedTarget = { address?: Address; knownKey?: KnownContractKey; selectorsByRole: Record<string, readonly Hex[]> };
+  const [importParsed, setImportParsed] = useState<
+    | undefined
+    | {
+        version: number;
+        sourceChainId: number;
+        accessManager: Address;
+        roles: Array<{ id: string; key?: string; label?: string; members: MemberRef[] }>;
+        targets: Array<ImportedTarget>;
+      }
+  >();
+  const [importErrors, setImportErrors] = useState<string | undefined>();
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [applyLogs, setApplyLogs] = useState<string[]>([]);
+  const [replaceSelectors, setReplaceSelectors] = useState(false);
+
   function toggleCallPanel(key: string) {
     setOpenCalls((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -494,6 +515,33 @@ export default function RolesPage() {
     return abi.filter((i): i is AbiFunction => i.type === "function").map((fn) => ({ sig: buildSignature(fn), name: fn.name }));
   }
 
+  function getKnownKeyForAddressOnThisChain(addr: Address): KnownContractKey | undefined {
+    const target = (addr as string).toLowerCase();
+    for (const key of Object.keys(KNOWN_CONTRACTS) as KnownContractKey[]) {
+      const mapped = KNOWN_CONTRACTS[key].addressMap[chainId];
+      if (mapped && (mapped as string).toLowerCase() === target) return key;
+    }
+    return undefined;
+  }
+
+  function resolveMemberRefToAddress(ref: MemberRef): Address | undefined {
+    if (ref.knownKey) {
+      const mapped = KNOWN_CONTRACTS[ref.knownKey].addressMap[chainId];
+      return mapped as Address | undefined;
+    }
+    if (ref.address && isAddress(ref.address)) return ref.address as Address;
+    return undefined;
+  }
+
+  function resolveTargetRefToAddress(ref: TargetRef): Address | undefined {
+    if (ref.knownKey) {
+      const mapped = KNOWN_CONTRACTS[ref.knownKey].addressMap[chainId];
+      return mapped as Address | undefined;
+    }
+    if (ref.address && isAddress(ref.address)) return ref.address as Address;
+    return undefined;
+  }
+
   async function handleRemoveSelector(target: Address, roleId: bigint, selector: Hex) {
     const key = `${target.toLowerCase()}-${roleId.toString()}`;
     if (!address) {
@@ -596,6 +644,269 @@ export default function RolesPage() {
       setSelectorErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
       setSelectorAddBusy((p) => ({ ...p, [key]: false }));
+    }
+  }
+
+  async function buildExportData() {
+    const currentChainId = chainId;
+    const am = accessManager;
+    const result: {
+      version: number;
+      sourceChainId: number;
+      accessManager: Address;
+      roles: Array<{ id: string; key?: string; label?: string; members: MemberRef[] }>;
+      targets: Array<{ address?: Address; knownKey?: KnownContractKey; selectorsByRole: Record<string, readonly Hex[]> }>;
+    } = {
+      version: 1,
+      sourceChainId: currentChainId,
+      accessManager: am,
+      roles: [],
+      targets: [],
+    };
+
+    // Roles and members
+    for (const r of roles.filter((x) => x.id !== ROLE.ADMIN)) {
+      const members = await fetchRoleMembers(publicClient!, currentChainId, r.id);
+      const memberRefs: MemberRef[] = members.map((m) => {
+        const addr = m.account as Address;
+        const knownKey = getKnownKeyForAddressOnThisChain(addr);
+        return knownKey ? { knownKey } : { address: addr };
+      });
+      result.roles.push({ id: r.id.toString(), key: r.label, label: r.label, members: memberRefs });
+    }
+
+    // Targets and selectors per role
+    const targets = await fetchManagedTargets();
+    for (const t of targets) {
+      const byRole: Record<string, readonly Hex[]> = {};
+      for (const r of roles.filter((x) => x.id !== ROLE.ADMIN)) {
+        const sels = await fetchTargetRoleSelectors(t as Address, r.id);
+        byRole[r.id.toString()] = sels;
+      }
+      const knownKey = getKnownKeyForAddressOnThisChain(t as Address);
+      if (knownKey) {
+        result.targets.push({ knownKey, selectorsByRole: byRole });
+      } else {
+        result.targets.push({ address: t as Address, selectorsByRole: byRole });
+      }
+    }
+
+    return result;
+  }
+
+  async function handleExportJson() {
+    if (!publicClient) return;
+    setExporting(true);
+    try {
+      const data = await buildExportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `roles-export-${chainId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function parseImportJson(text: string) {
+    setImportJsonText(text);
+    setImportErrors(undefined);
+    try {
+      const parsed = JSON.parse(text);
+      // Basic shape validation
+      if (
+        typeof parsed !== "object" ||
+        typeof parsed.version !== "number" ||
+        !Array.isArray(parsed.roles) ||
+        !Array.isArray(parsed.targets)
+      ) {
+        throw new Error("Invalid file format");
+      }
+      setImportParsed(parsed);
+    } catch (e) {
+      setImportParsed(undefined);
+      setImportErrors((e as Error).message || "Invalid JSON");
+    }
+  }
+
+  async function applyImport() {
+    if (!importParsed) return;
+    if (!address) {
+      setImportErrors("Connect wallet to apply import");
+      return;
+    }
+    setApplyBusy(true);
+    setApplyLogs([]);
+    setImportErrors(undefined);
+    try {
+      // Map roleId string -> bigint
+      const roleIdStrings = new Set(importParsed.roles.map((r) => r.id));
+
+      // 1) Members: add-only
+      for (const roleEntry of importParsed.roles) {
+        const roleId = BigInt(roleEntry.id);
+        if (roleId === ROLE.ADMIN) continue; // never modify ADMIN
+        const key = roleId.toString();
+        setApplyLogs((p) => [...p, `Checking members for role ${getRoleMetaById(roleId)?.label ?? key}`]);
+        const current = await fetchRoleMembers(publicClient!, chainId, roleId);
+        const currentSet = new Set(current.map((m) => (m.account as string).toLowerCase()));
+        // Normalize members entries from file: support legacy string[] as addresses
+        const desiredAddresses: Address[] = (roleEntry.members as unknown as Array<MemberRef | string> | undefined)
+          ?.map((m) => {
+            if (typeof m === "string") {
+              return isAddress(m) ? (m as Address) : undefined;
+            }
+            return resolveMemberRefToAddress(m as MemberRef);
+          })
+          .filter((x): x is Address => Boolean(x)) ?? [];
+        const seen = new Set<string>();
+        const uniqueDesired = desiredAddresses.filter((a) => {
+          const key = (a as string).toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        const toAdd = uniqueDesired.filter((m) => !currentSet.has((m as string).toLowerCase()));
+        if (toAdd.length === 0) continue;
+        // Batch add in chunks to avoid tx size limits; here per-address
+        for (const m of toAdd) {
+          setApplyLogs((p) => [...p, `Granting role ${key} to ${m}`]);
+          try {
+            await publicClient!.simulateContract({
+              abi: ABI.AccessManager,
+              address: accessManager,
+              functionName: "grantRole",
+              args: [roleId, m as Address, 0n],
+              account: address,
+            });
+          } catch (err) {
+            const msg = extractReadableRevert(err, [ABI.AccessManager]);
+            setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+            return;
+          }
+          try {
+            const txHash = await writeContractAsync({
+              abi: ABI.AccessManager,
+              address: accessManager,
+              functionName: "grantRole",
+              args: [roleId, m as Address, 0n],
+            });
+            await publicClient!.waitForTransactionReceipt({ hash: txHash });
+          } catch (err) {
+            const msg = extractReadableRevert(err, [ABI.AccessManager]);
+            setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+            return;
+          }
+        }
+      }
+
+      // 2) Selectors per target/role
+      const currentTargets = await fetchManagedTargets();
+      const currentTargetSet = new Set(currentTargets.map((t) => (t as string).toLowerCase()));
+      for (const tgt of importParsed.targets) {
+        const targetAddr = resolveTargetRefToAddress(tgt as TargetRef);
+        if (!targetAddr) {
+          setApplyLogs((p) => [...p, `Skipping target with unresolved address (knownKey/address missing or invalid)`]);
+          continue;
+        }
+        setApplyLogs((p) => [...p, `Syncing selectors for target ${targetAddr}`]);
+        for (const roleIdStr of Object.keys((tgt as ImportedTarget).selectorsByRole || {})) {
+          if (!roleIdStrings.has(roleIdStr)) continue; // ignore unknown roles
+          const roleId = BigInt(roleIdStr);
+          if (roleId === ROLE.ADMIN) continue; // never modify ADMIN
+          const desired = new Set(((tgt as ImportedTarget).selectorsByRole[roleIdStr] || []).map((h) => (h as string).toLowerCase()));
+          const current = new Set(
+            (await fetchTargetRoleSelectors(targetAddr, roleId)).map((h) => (h as string).toLowerCase())
+          );
+
+          // Add missing selectors
+          const toAdd: Hex[] = [];
+          desired.forEach((h) => {
+            if (!current.has(h)) toAdd.push(h as Hex);
+          });
+          if (toAdd.length > 0) {
+            setApplyLogs((p) => [...p, `Adding ${toAdd.length} selectors to role ${roleIdStr}`]);
+            try {
+              await publicClient!.simulateContract({
+                abi: ABI.AccessManager,
+                address: accessManager,
+                functionName: "setTargetFunctionRole",
+                args: [targetAddr, toAdd as readonly Hex[], roleId],
+                account: address,
+              });
+            } catch (err) {
+              const msg = extractReadableRevert(err, [ABI.AccessManager]);
+              setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+              return;
+            }
+            try {
+              const txHash = await writeContractAsync({
+                abi: ABI.AccessManager,
+                address: accessManager,
+                functionName: "setTargetFunctionRole",
+                args: [targetAddr, toAdd as readonly Hex[], roleId],
+              });
+              await publicClient!.waitForTransactionReceipt({ hash: txHash });
+            } catch (err) {
+              const msg = extractReadableRevert(err, [ABI.AccessManager]);
+              setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+              return;
+            }
+          }
+
+          // Optionally remove extras by remapping to public role
+          if (replaceSelectors && publicRoleId !== undefined) {
+            const extras: Hex[] = [];
+            current.forEach((h) => {
+              if (!desired.has(h)) extras.push(h as Hex);
+            });
+            if (extras.length > 0) {
+              setApplyLogs((p) => [...p, `Removing ${extras.length} selectors from role ${roleIdStr}`]);
+              try {
+                await publicClient!.simulateContract({
+                  abi: ABI.AccessManager,
+                  address: accessManager,
+                  functionName: "setTargetFunctionRole",
+                  args: [targetAddr, extras as readonly Hex[], publicRoleId!],
+                  account: address,
+                });
+              } catch (err) {
+                const msg = extractReadableRevert(err, [ABI.AccessManager]);
+                setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+                return;
+              }
+              try {
+                const txHash = await writeContractAsync({
+                  abi: ABI.AccessManager,
+                  address: accessManager,
+                  functionName: "setTargetFunctionRole",
+                  args: [targetAddr, extras as readonly Hex[], publicRoleId!],
+                });
+                await publicClient!.waitForTransactionReceipt({ hash: txHash });
+              } catch (err) {
+                const msg = extractReadableRevert(err, [ABI.AccessManager]);
+                setImportErrors(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
+                return;
+              }
+            }
+          }
+        }
+
+        // Ensure target is registered if not present (setting selectors above already registers)
+        if (!currentTargetSet.has((targetAddr as string).toLowerCase())) {
+          // nothing extra to do here
+        }
+      }
+
+      await invalidateRoleRelated();
+      await invalidateTargetSelectors();
+    } finally {
+      setApplyBusy(false);
     }
   }
 
@@ -917,6 +1228,56 @@ export default function RolesPage() {
                 );
               })}
             </div>
+        </CardContent>
+      </Card>
+      {/* Export / Import moved to bottom */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Export / Import</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={handleExportJson} disabled={exporting || !publicClient}>
+              {exporting ? "Exporting…" : "Export current config (JSON)"}
+            </Button>
+          </div>
+          <hr className="my-2" />
+          <div className="grid gap-2">
+            <Label>Import JSON</Label>
+            <textarea
+              className="w-full min-h-[160px] max-h-[320px] border rounded-md p-2 text-sm overflow-auto whitespace-pre-wrap break-words"
+              placeholder="Paste exported JSON here"
+              value={importJsonText}
+              onChange={(e) => parseImportJson(e.target.value)}
+            />
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                id="replace-selectors"
+                type="checkbox"
+                checked={replaceSelectors}
+                onChange={(e) => setReplaceSelectors(e.target.checked)}
+              />
+              <Label htmlFor="replace-selectors">Replace selectors (remove extras not in file)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={applyImport} disabled={!importParsed || applyBusy || !publicClient}>
+                {applyBusy ? "Applying…" : "Apply to current chain"}
+              </Button>
+              {importErrors && <div className="text-xs text-red-600">{importErrors}</div>}
+            </div>
+            {importParsed && (
+              <div className="text-xs text-muted-foreground">
+                Ready to import roles and selectors from chain {importParsed.sourceChainId} to chain {chainId}.
+              </div>
+            )}
+            {applyLogs.length > 0 && (
+              <div className="mt-2 border rounded-md p-2 max-h-56 overflow-auto text-xs">
+                {applyLogs.map((l, i) => (
+                  <div key={`log-${i}`}>{l}</div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
