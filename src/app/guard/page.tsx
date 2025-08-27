@@ -570,8 +570,9 @@ export default function GuardPage() {
           const listQuery = lists[idx];
           const title =
             k === "account" ? "Account Modules" : k === "deposit" ? "Deposit Modules" : "Withdraw Modules";
-          const count = (listQuery.data ?? []).length;
-          const currentSet = new Set((listQuery.data ?? []).map((a) => (a as string).toLowerCase()));
+          const safeData = (listQuery?.data ?? []) as readonly Address[];
+          const count = safeData.length;
+          const currentSet = new Set(safeData.map((a) => (a as string).toLowerCase()));
           return (
             <Card key={k}>
               <CardHeader>
@@ -584,7 +585,7 @@ export default function GuardPage() {
                   <div className="text-sm text-muted-foreground">Unavailable on this chain.</div>
                 ) : !metaQuery.data ? (
                   <div className="text-sm text-muted-foreground">Loading…</div>
-                ) : (listQuery.data ?? []).length === 0 ? (
+                ) : safeData.length === 0 ? (
                   <div className="text-sm text-muted-foreground">
                     No modules configured.
                     {" "}
@@ -596,7 +597,7 @@ export default function GuardPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    {listQuery.data!.map((addr) => {
+                    {safeData.map((addr) => {
                       const label = getKnownAddressLabel(chainId, addr) ?? addr;
                       const href = getAddressExplorerUrl(chainId, addr);
                       const t = moduleTypeByAddr[(addr as string).toLowerCase()];
@@ -700,7 +701,7 @@ export default function GuardPage() {
                 ) : null}
                 {errors[k] && <div className="mt-2 text-xs text-red-600">{errors[k]}</div>}
                 {/* Blacklist settings panel */}
-                {(listQuery.data ?? []).map((addr) => {
+                {safeData.map((addr) => {
                   const key = (addr as string).toLowerCase();
                   const t = moduleTypeByAddr[key];
                   if (t !== "blacklist" || !settingsOpen[key]) return null;
@@ -742,7 +743,7 @@ export default function GuardPage() {
                   );
                 })}
                 {/* RateLimit settings panel */}
-                {(listQuery.data ?? []).map((addr) => {
+                {safeData.map((addr) => {
                   const key = (addr as string).toLowerCase();
                   const t = moduleTypeByAddr[key];
                   if (t !== "ratelimit" || !settingsOpen[key]) return null;
