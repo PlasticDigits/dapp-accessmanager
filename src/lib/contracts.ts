@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { bscTestnet, opBNBTestnet } from "viem/chains";
+import { bsc, bscTestnet, opBNBTestnet } from "viem/chains";
 
 export const ROLE = {
   ADMIN: BigInt(0),
@@ -100,13 +100,15 @@ export function getRoleMetaById(roleId: RoleId): RoleMeta | undefined {
 }
 
 export const CREATE3_DEPLOYER_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xaE23BB518DB7565Fc32E32f0dD01d0D08a29e356",
-  [opBNBTestnet.id]: "0xaE23BB518DB7565Fc32E32f0dD01d0D08a29e356",
+  [bsc.id]: "0x21ff2F046C58e423570f42f160BeC14967D69798",
+  [bscTestnet.id]: "0x21ff2F046C58e423570f42f160BeC14967D69798",
+  [opBNBTestnet.id]: "0x21ff2F046C58e423570f42f160BeC14967D69798",
 };
 
 export const ACCESS_MANAGER_ADDRESSES: Record<number, Address> = {
-  [bscTestnet.id]: "0xe36D541D3B8509AD8B140Dd2e9864088970B2e6a",
-  [opBNBTestnet.id]: "0xe36D541D3B8509AD8B140Dd2e9864088970B2e6a",
+  [bsc.id]: "0xA1012cf7d54650A01608161E7C70400dE7A3B476",
+  [bscTestnet.id]: "0xA1012cf7d54650A01608161E7C70400dE7A3B476",
+  [opBNBTestnet.id]: "0xA1012cf7d54650A01608161E7C70400dE7A3B476",
 } as const;
 
 export function getAccessManagerAddress(chainId: number): Address {
@@ -120,58 +122,69 @@ export function getAccessManagerAddress(chainId: number): Address {
 export const FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS: Partial<
   Record<number, Address>
 > = {
-  [bscTestnet.id]: "0x1b810924F034Ec629D92dfdC60fB69E26Fd19ad6",
-  [opBNBTestnet.id]: "0x1b810924F034Ec629D92dfdC60fB69E26Fd19ad6",
+  [bsc.id]: "0x05e08a938b3812DC8B7B4b16f898512ac99752CD",
+  [bscTestnet.id]: "0x05e08a938b3812DC8B7B4b16f898512ac99752CD",
+  [opBNBTestnet.id]: "0x05e08a938b3812DC8B7B4b16f898512ac99752CD",
 };
 
 export const CHAIN_REGISTRY_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xbCA36349f57bE4f714a53D7B80C6b2Ee2FaD7D97",
-  [opBNBTestnet.id]: "0xbCA36349f57bE4f714a53D7B80C6b2Ee2FaD7D97",
+  [bsc.id]: "0x0B43A43A64284f49A9FDa3282C1a5f2eb74620D8",
+  [bscTestnet.id]: "0x0B43A43A64284f49A9FDa3282C1a5f2eb74620D8",
+  [opBNBTestnet.id]: "0x0B43A43A64284f49A9FDa3282C1a5f2eb74620D8",
 };
 
 export const TOKEN_REGISTRY_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xEc7C74A161b7eE8744b1114DFd5dcd68c4c862Eb",
-  [opBNBTestnet.id]: "0xEc7C74A161b7eE8744b1114DFd5dcd68c4c862Eb",
+  [bsc.id]: "0x23F054503f163Fc5196E1D7E29B3cCDe73282101",
+  [bscTestnet.id]: "0x23F054503f163Fc5196E1D7E29B3cCDe73282101",
+  [opBNBTestnet.id]: "0x23F054503f163Fc5196E1D7E29B3cCDe73282101",
 };
 
 export const MINT_BURN_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xF1Fa3De220C493e562563dB2822148AB3B69B131",
-  [opBNBTestnet.id]: "0xF1Fa3De220C493e562563dB2822148AB3B69B131",
+  [bsc.id]: "0x6721D7d9f4b2d75b205B0E19450D30b7284A4E15",
+  [bscTestnet.id]: "0x6721D7d9f4b2d75b205B0E19450D30b7284A4E15",
+  [opBNBTestnet.id]: "0x6721D7d9f4b2d75b205B0E19450D30b7284A4E15",
 };
 
 export const LOCK_UNLOCK_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xd3A0819939Cd8882Ee7953F98C40A348033B24D0",
-  [opBNBTestnet.id]: "0xd3A0819939Cd8882Ee7953F98C40A348033B24D0",
+  [bsc.id]: "0x6132fcb458b8570B69052463f2F9d09B340A6bA0",
+  [bscTestnet.id]: "0x6132fcb458b8570B69052463f2F9d09B340A6bA0",
+  [opBNBTestnet.id]: "0x6132fcb458b8570B69052463f2F9d09B340A6bA0",
 };
 
 export const CL8Y_BRIDGE_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xc4523866960085551DB6E3d26Da7234B448D1EC7",
-  [opBNBTestnet.id]: "0xc4523866960085551DB6E3d26Da7234B448D1EC7",
+  [bsc.id]: "0x9981937e53758C46464fF89B35dF9A46175A7212",
+  [bscTestnet.id]: "0x9981937e53758C46464fF89B35dF9A46175A7212",
+  [opBNBTestnet.id]: "0x9981937e53758C46464fF89B35dF9A46175A7212",
 };
 
 export const DATASTORE_SET_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0x3f8bD8DD6C3F2f1C90676559E901427DcF437649",
-  [opBNBTestnet.id]: "0x3f8bD8DD6C3F2f1C90676559E901427DcF437649",
+  [bsc.id]: "0x246956595e15Cc5bcf0113F5a6Ce77868F03A303",
+  [bscTestnet.id]: "0x246956595e15Cc5bcf0113F5a6Ce77868F03A303",
+  [opBNBTestnet.id]: "0x246956595e15Cc5bcf0113F5a6Ce77868F03A303",
 };
 
 export const GUARD_BRIDGE_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0x2B8c5d49F15264C9cF85b3268996929BaD9bad09",
-  [opBNBTestnet.id]: "0x2B8c5d49F15264C9cF85b3268996929BaD9bad09",
+  [bsc.id]: "0xD51218d8047018CAd98E30e63f69BCab2E41c26E",
+  [bscTestnet.id]: "0xD51218d8047018CAd98E30e63f69BCab2E41c26E",
+  [opBNBTestnet.id]: "0xD51218d8047018CAd98E30e63f69BCab2E41c26E",
 };
 
 export const BLACKLIST_BASIC_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0x17c0275FBfC2df9c2a2C860b36639901e64B35Bd",
-  [opBNBTestnet.id]: "0x17c0275FBfC2df9c2a2C860b36639901e64B35Bd",
+  [bsc.id]: "0x5fb049936C0376bB917D4eF1164f192f93631223",
+  [bscTestnet.id]: "0x5fb049936C0376bB917D4eF1164f192f93631223",
+  [opBNBTestnet.id]: "0x5fb049936C0376bB917D4eF1164f192f93631223",
 };
 
 export const TOKEN_RATE_LIMIT_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xda28F9F9687B10e3653B365563Ab47Ff12c8bD7B",
-  [opBNBTestnet.id]: "0xda28F9F9687B10e3653B365563Ab47Ff12c8bD7B",
+  [bsc.id]: "0x4e333747237E42E28d0499989b21A2bc0f8a0066",
+  [bscTestnet.id]: "0x4e333747237E42E28d0499989b21A2bc0f8a0066",
+  [opBNBTestnet.id]: "0x4e333747237E42E28d0499989b21A2bc0f8a0066",
 };
 
 export const BRIDGE_ROUTER_ADDRESS: Partial<Record<number, Address>> = {
-  [bscTestnet.id]: "0xB3D5a55ced4F432C9bCC9eeE2E73056471eE82a1",
-  [opBNBTestnet.id]: "0xB3D5a55ced4F432C9bCC9eeE2E73056471eE82a1",
+  [bsc.id]: "0x52cDA4D1D1cC1B1499E25f75933D8A83a9c111c0",
+  [bscTestnet.id]: "0x52cDA4D1D1cC1B1499E25f75933D8A83a9c111c0",
+  [opBNBTestnet.id]: "0x52cDA4D1D1cC1B1499E25f75933D8A83a9c111c0",
 };
 
 export type KnownContractKey =
