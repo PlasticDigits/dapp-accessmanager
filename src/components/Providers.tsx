@@ -28,7 +28,7 @@ function makeQueryClient(): QueryClient {
 const wagmiConfig = createConfig({
   chains: SUPPORTED_CHAINS,
   connectors: [injected({ shimDisconnect: true })],
-  ssr: true,
+  ssr: false,
   transports: makeTransportsFromEnv(),
   storage: createStorage({ storage: cookieStorage }),
 });

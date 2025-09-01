@@ -912,7 +912,7 @@ export default function RolesPage() {
 
   
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 grid gap-6">
+    <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 grid gap-4 sm:gap-6">
       <Card>
         <CardHeader>
           <CardTitle>Your Roles</CardTitle>
@@ -950,8 +950,8 @@ export default function RolesPage() {
                     const itemKey = `${r.id.toString()}-${(m.account as string).toLowerCase()}`;
                     const busy = Boolean(revokingMap[itemKey]);
                     return (
-                      <Badge key={m.account} className="inline-flex items-center gap-1">
-                        <a href={href} target="_blank" rel="noopener noreferrer" className="underline">
+                      <Badge key={m.account} className="inline-flex items-center gap-1 max-w-full">
+                        <a href={href} target="_blank" rel="noopener noreferrer" className="underline break-all">
                           {label}
                         </a>
                         <button
@@ -1057,7 +1057,7 @@ export default function RolesPage() {
                 return (
                   <div key={t as string} className="grid gap-2">
                     <div className="font-medium">
-                      <a href={href} target="_blank" rel="noopener noreferrer">{label}</a>
+                      <a href={href} target="_blank" rel="noopener noreferrer" className="break-all">{label}</a>
                     </div>
                     <div className="text-xs flex items-center gap-2">
                       <span className={isAdmin ? "text-green-600" : "text-red-600"}>{isAdmin ? "✓" : "x"}</span>
@@ -1093,11 +1093,11 @@ export default function RolesPage() {
                                   return (
                                     <div key={sel as string} className="border rounded p-2">
                                       <div className="relative">
-                                        <div className="pr-12 overflow-x-auto">
-                                          <div className="flex items-center justify-between">
+                                        <div className="pr-12">
+                                          <div className="flex items-center justify-between gap-2 min-w-0">
                                             <button
                                               type="button"
-                                              className={`text-left ${canInteract ? "underline" : "text-muted-foreground cursor-not-allowed"}`}
+                                              className={`text-left break-words ${canInteract ? "underline" : "text-muted-foreground cursor-not-allowed"}`}
                                               onClick={() => canInteract && toggleCallPanel(key)}
                                               disabled={!canInteract}
                                             >
@@ -1110,8 +1110,8 @@ export default function RolesPage() {
                                             )}
                                           </div>
                                         </div>
-                                        <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-card" />
-                                        <div className="pointer-events-none absolute right-10 top-0 h-full w-14 bg-gradient-to-l from-card to-transparent" />
+                                        <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-card hidden sm:block" />
+                                        <div className="pointer-events-none absolute right-10 top-0 h-full w-14 bg-gradient-to-l from-card to-transparent hidden sm:block" />
                                         <button
                                           type="button"
                                           aria-label="Remove selector"
@@ -1152,7 +1152,7 @@ export default function RolesPage() {
                                               ))}
                                             </div>
                                           )}
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
                                             <Button size="sm" onClick={() => executeTargetFunction(t as Address, sel as Hex)} disabled={Boolean(callLoading[key])}>
                                               {callLoading[key] ? "Calling..." : "Call via AccessManager"}
                                             </Button>

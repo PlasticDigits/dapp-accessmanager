@@ -14,6 +14,7 @@ import BlacklistBasicArtifact from "../../artifacts/out/BlacklistBasic.sol/Black
 import TokenRateLimitArtifact from "../../artifacts/out/TokenRateLimit.sol/TokenRateLimit.json";
 import BridgeRouterArtifact from "../../artifacts/out/BridgeRouter.sol/BridgeRouter.json";
 import Create3DeployerArtifact from "../../artifacts/out/Create3Deployer.sol/Create3Deployer.json";
+import TokenCl8yBridgedArtifact from "../../artifacts/out/TokenCl8yBridged.sol/TokenCl8yBridged.json";
 
 export const ABI = {
   AccessManager: AccessManager as unknown as Abi,
@@ -30,4 +31,5 @@ export const ABI = {
   TokenRateLimit: (TokenRateLimitArtifact as unknown as { abi: Abi }).abi,
   BridgeRouter: (BridgeRouterArtifact as unknown as { abi: Abi }).abi,
   Create3Deployer: (Create3DeployerArtifact as unknown as { abi: Abi }).abi,
+  TokenCl8yBridged: (TokenCl8yBridgedArtifact as unknown as { abi: Abi }).abi,
 } as const;

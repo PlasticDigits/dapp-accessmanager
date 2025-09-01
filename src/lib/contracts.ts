@@ -12,6 +12,7 @@ export const ROLE = {
   CONFIG: BigInt(7),
   REGISTRAR: BigInt(8),
   WITHDRAW_REENABLE: BigInt(9),
+  TOKEN_CREATOR: BigInt(10),
 } as const;
 
 export type RoleId = (typeof ROLE)[keyof typeof ROLE];
@@ -92,6 +93,13 @@ export const ROLES: readonly RoleMeta[] = [
     id: ROLE.WITHDRAW_REENABLE,
     label: "WITHDRAW_REENABLE",
     description: "Reenable canceled withdraws",
+  },
+  {
+    key: "TOKEN_CREATOR",
+    id: ROLE.TOKEN_CREATOR,
+    label: "TOKEN_CREATOR",
+    description:
+      "Authorized to create new tokens on the Factory Token CL8y Bridged (createToken).",
   },
 ] as const;
 
