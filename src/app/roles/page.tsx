@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract, useReadContracts } from "wagmi";
 import type { Address, Hex, Abi, AbiFunction } from "viem";
 import { encodeFunctionData, getFunctionSelector, isAddress, decodeErrorResult } from "viem";
@@ -33,6 +33,8 @@ export default function RolesPage() {
   const publicClient = usePublicClient();
   const queryClient = useQueryClient();
   const { writeContractAsync } = useWriteContract();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const roles = useMemo(
     () => ROLES.map((r) => ({ id: r.id, label: r.label })),
@@ -911,6 +913,7 @@ export default function RolesPage() {
   }
 
   
+  if (!mounted) return null;
   return (
     <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 grid gap-4 sm:gap-6">
       <Card>
@@ -1039,7 +1042,7 @@ export default function RolesPage() {
               <div className="grid gap-2">
                 <div className="font-medium">No managed targets configured</div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  {roles.map((r) => (
+                  {roles.filter((r) => r.id !== ROLE.MINTER && r.id !== ROLE.ADMIN).map((r) => (
                     <div key={`no-target-${r.id.toString()}`} className="border rounded-md p-2">
                       <div className="text-sm mb-2 flex items-center gap-2">
                         <span className="text-muted-foreground">Role: {r.label}</span>
@@ -1070,7 +1073,7 @@ export default function RolesPage() {
                       </span>
                     </div>
                     <div className="grid gap-2 md:grid-cols-2">
-                      {roles.map((r) => {
+                      {roles.filter((r) => r.id !== ROLE.MINTER && r.id !== ROLE.ADMIN).map((r) => {
                         const sels = (entry?.data as TargetSelectorsByRole | undefined)?.byRole?.[r.id.toString()] ?? [];
                         const roleIdx = roles.findIndex((rr) => rr.id === r.id);
                         const isMember = Boolean((roleReadResults?.[roleIdx] as { result?: [boolean, bigint] } | undefined)?.result?.[0]);

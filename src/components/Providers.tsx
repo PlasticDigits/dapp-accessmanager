@@ -10,7 +10,7 @@ import {
 import "@rainbow-me/rainbowkit/styles.css";
 import { WagmiProvider, createConfig, cookieStorage, createStorage } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { SUPPORTED_CHAINS, makeTransportsFromEnv } from "@/lib/chains";
+import { SUPPORTED_CHAINS, makeTransportsFromConfig } from "@/lib/chains";
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -29,7 +29,7 @@ const wagmiConfig = createConfig({
   chains: SUPPORTED_CHAINS,
   connectors: [injected({ shimDisconnect: true })],
   ssr: false,
-  transports: makeTransportsFromEnv(),
+  transports: makeTransportsFromConfig(),
   storage: createStorage({ storage: cookieStorage }),
 });
 

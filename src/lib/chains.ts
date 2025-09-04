@@ -56,21 +56,15 @@ export function getPeerEvmChainIds(currentChainId: number): number[] {
 
 type RpcMap = Partial<Record<number, string>>;
 
-export function makeTransportsFromEnv(): Record<
+export function makeTransportsFromConfig(): Record<
   number,
   ReturnType<typeof http>
 > {
-  const rpcUrlByChainId: RpcMap = {
-    [bsc.id]: process.env.NEXT_PUBLIC_RPC_BSC,
-    [bscTestnet.id]: process.env.NEXT_PUBLIC_RPC_BSC_TESTNET,
-    [opBNB.id]: process.env.NEXT_PUBLIC_RPC_OPBNB,
-    [opBNBTestnet.id]: process.env.NEXT_PUBLIC_RPC_OPBNB_TESTNET,
-  };
-
   const transports: Record<number, ReturnType<typeof http>> = {};
   for (const chain of SUPPORTED_CHAINS) {
-    const url = rpcUrlByChainId[chain.id];
-    transports[chain.id] = http(url && url.length > 0 ? url : undefined);
+    const url = (chain.rpcUrls?.default?.http?.[0] ??
+      chain.rpcUrls?.public?.http?.[0]) as string | undefined;
+    transports[chain.id] = http(url);
   }
   return transports;
 }

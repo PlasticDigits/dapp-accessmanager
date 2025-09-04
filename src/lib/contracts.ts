@@ -13,6 +13,7 @@ export const ROLE = {
   REGISTRAR: BigInt(8),
   WITHDRAW_REENABLE: BigInt(9),
   TOKEN_CREATOR: BigInt(10),
+  MINTER: BigInt(11),
 } as const;
 
 export type RoleId = (typeof ROLE)[keyof typeof ROLE];
@@ -68,6 +69,13 @@ export const ROLES: readonly RoleMeta[] = [
     label: "MINTLOCK",
     description:
       "Can call mint/burn on MintBurn and lock/unlock on LockUnlock. Required by CL8Y Bridge contract.",
+  },
+  {
+    key: "MINTER",
+    id: ROLE.MINTER,
+    label: "MINTER",
+    description:
+      "Can call mint on factory-created TokenCl8yBridged instances (bridge mint only).",
   },
   {
     key: "PAUSER",

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
 import type { Address, Hex, Abi, AbiFunction } from "viem";
+import { getFunctionSelector, encodeFunctionData } from "viem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,8 @@ export default function TokensPage() {
   const { address } = useAccount();
   const chainId = useChainId();
   const publicClient = usePublicClient();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
 
@@ -174,13 +177,14 @@ export default function TokensPage() {
       enabled: Boolean(publicClient && t),
       staleTime: 60_000,
       queryFn: async () => {
-        if (!publicClient) return undefined as | { name: string; symbol: string; logo?: string } | undefined;
-        const [name, symbol, logo] = await Promise.all([
+        if (!publicClient) return undefined as | { name: string; symbol: string; logo?: string; decimals?: number } | undefined;
+        const [name, symbol, logo, decimals] = await Promise.all([
           publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "name", args: [] }) as Promise<string>,
           publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "symbol", args: [] }) as Promise<string>,
           publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "logoLink", args: [] }) as Promise<string>,
+          publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "decimals", args: [] }) as Promise<number>,
         ]);
-        return { name, symbol, logo };
+        return { name, symbol, logo, decimals };
       },
     })),
   });
@@ -245,13 +249,35 @@ export default function TokensPage() {
         const am = tokenAccessManagers[idx]?.data as Address | undefined;
         const mintBurn = MINT_BURN_ADDRESS[chainId] as Address | undefined;
         if (!am || !mintBurn) return false;
+        // Check that MintBurn has MINTER role (not MINTLOCK)
         const res = (await publicClient.readContract({
           abi: ABI.AccessManager,
           address: am,
           functionName: "hasRole",
-          args: [ROLE.MINTLOCK, mintBurn],
+          args: [ROLE.MINTER, mintBurn],
         })) as [boolean, bigint];
-        return Boolean(res?.[0]);
+        const hasRole = Boolean(res?.[0]);
+        if (!hasRole) return false;
+        // Also ensure token's mint function is mapped to MINTER
+        try {
+          const tokenAbi = ABI.TokenCl8yBridged as unknown as Abi;
+          const fn = (tokenAbi as Abi)
+            .filter((i): i is AbiFunction => i.type === "function")
+            .find((f) => f.name === "mint");
+          const selector = fn
+            ? (getFunctionSelector(`${fn.name}(${(fn.inputs ?? []).map((i) => i.type).join(",")})`) as Hex)
+            : undefined;
+          if (!selector) return true; // if ABI missing, don't block readiness
+          const sels = (await publicClient.readContract({
+            abi: ABI.AccessManager,
+            address: am,
+            functionName: "getTargetRoleSelectors",
+            args: [t as Address, ROLE.MINTER],
+          })) as readonly Hex[];
+          return sels.map((s) => (s as string).toLowerCase()).includes((selector as string).toLowerCase());
+        } catch {
+          return hasRole;
+        }
       },
     })),
   });
@@ -270,6 +296,26 @@ export default function TokensPage() {
           address: am,
           functionName: "hasRole",
           args: [ROLE.ADMIN, address as Address],
+        })) as [boolean, bigint];
+        return Boolean(res?.[0]);
+      },
+    })),
+  });
+
+  const userMinterChecksForTokenAM = useQueries({
+    queries: (createdTokensQuery.data ?? []).map((t, idx) => ({
+      queryKey: ["token-user-minter", chainId, t, tokenAccessManagers[idx]?.data, address],
+      enabled: Boolean(publicClient && address && tokenAccessManagers[idx]?.data),
+      staleTime: 60_000,
+      queryFn: async (): Promise<boolean> => {
+        if (!publicClient || !address) return false;
+        const am = tokenAccessManagers[idx]?.data as Address | undefined;
+        if (!am) return false;
+        const res = (await publicClient.readContract({
+          abi: ABI.AccessManager,
+          address: am,
+          functionName: "hasRole",
+          args: [ROLE.MINTER, address as Address],
         })) as [boolean, bigint];
         return Boolean(res?.[0]);
       },
@@ -320,6 +366,10 @@ export default function TokensPage() {
   const [registerBusy, setRegisterBusy] = useState<Record<string, boolean>>({});
   const [registerErrors, setRegisterErrors] = useState<Record<string, string | undefined>>({});
 
+  const [mintInputs, setMintInputs] = useState<Record<string, string>>({});
+  const [mintSelfBusy, setMintSelfBusy] = useState<Record<string, boolean>>({});
+  const [mintSelfErrors, setMintSelfErrors] = useState<Record<string, string | undefined>>({});
+
   async function handleSetMintRole(idx: number) {
     const am = tokenAccessManagers[idx]?.data as Address | undefined;
     const mintBurn = MINT_BURN_ADDRESS[chainId] as Address | undefined;
@@ -328,11 +378,12 @@ export default function TokensPage() {
     setSetMintBusy((p) => ({ ...p, [key]: true }));
     setSetMintErrors((p) => ({ ...p, [key]: undefined }));
     try {
+      // Grant MINTER role to MintBurn
       await publicClient.simulateContract({
         abi: ABI.AccessManager,
         address: am,
         functionName: "grantRole",
-        args: [ROLE.MINTLOCK, mintBurn as Address, 0n],
+        args: [ROLE.MINTER, mintBurn as Address, 0n],
         account: address,
       });
     } catch (e) {
@@ -346,9 +397,35 @@ export default function TokensPage() {
         abi: ABI.AccessManager,
         address: am,
         functionName: "grantRole",
-        args: [ROLE.MINTLOCK, mintBurn as Address, 0n],
+        args: [ROLE.MINTER, mintBurn as Address, 0n],
       });
       await publicClient.waitForTransactionReceipt({ hash });
+      // Map token's mint() to MINTER role
+      try {
+        const tokenAbi = ABI.TokenCl8yBridged as unknown as Abi;
+        const fn = (tokenAbi as Abi)
+          .filter((i): i is AbiFunction => i.type === "function")
+          .find((f) => f.name === "mint");
+        if (fn) {
+          const selector = getFunctionSelector(`${fn.name}(${(fn.inputs ?? []).map((i) => i.type).join(",")})`) as Hex;
+          await publicClient.simulateContract({
+            abi: ABI.AccessManager,
+            address: am,
+            functionName: "setTargetFunctionRole",
+            args: [createdTokensQuery.data?.[idx] as Address, [selector] as readonly Hex[], ROLE.MINTER],
+            account: address,
+          });
+          const mapHash = await writeContractAsync({
+            abi: ABI.AccessManager,
+            address: am,
+            functionName: "setTargetFunctionRole",
+            args: [createdTokensQuery.data?.[idx] as Address, [selector] as readonly Hex[], ROLE.MINTER],
+          });
+          await publicClient.waitForTransactionReceipt({ hash: mapHash });
+        }
+      } catch {
+        // non-fatal; leave error surfaced
+      }
       const tokenAddr = (createdTokensQuery.data?.[idx] ?? undefined) as Address | undefined;
       await queryClient.invalidateQueries({ queryKey: ["token-mintrole", chainId, tokenAddr, am] });
     } catch (e) {
@@ -356,6 +433,82 @@ export default function TokensPage() {
       setSetMintErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
       setSetMintBusy((p) => ({ ...p, [key]: false }));
+    }
+  }
+
+  function toUnits(amountStr: string, decimals?: number): bigint | undefined {
+    try {
+      const d = Number(decimals ?? 18);
+      if (!Number.isFinite(d) || d < 0) return undefined;
+      const trimmed = (amountStr || "").trim();
+      if (!trimmed) return undefined;
+      if (!trimmed.includes(".")) return BigInt(trimmed) * (10n ** BigInt(d));
+      const [intPart, fracRaw] = trimmed.split(".");
+      const frac = (fracRaw || "").slice(0, d).padEnd(d, "0");
+      const clean = (intPart || "0").replace(/^0+/, "") || "0";
+      const bi = BigInt(clean || "0");
+      const bf = BigInt(frac || "0");
+      return bi * (10n ** BigInt(d)) + bf;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function handleMintToSelf(idx: number) {
+    const token = createdTokensQuery.data?.[idx] as Address | undefined;
+    const am = tokenAccessManagers[idx]?.data as Address | undefined;
+    const meta = tokenMetaCreatedQueries[idx]?.data as | { name: string; symbol: string; logo?: string; decimals?: number } | undefined;
+    if (!publicClient || !address || !token || !am) return;
+    const key = (token as string).toLowerCase();
+    const input = (mintInputs[key] || "").trim();
+    const amount = toUnits(input, meta?.decimals ?? 18);
+    if (!amount || amount <= 0n) {
+      setMintSelfErrors((p) => ({ ...p, [key]: "Enter a valid amount" }));
+      return;
+    }
+    setMintSelfBusy((p) => ({ ...p, [key]: true }));
+    setMintSelfErrors((p) => ({ ...p, [key]: undefined }));
+    try {
+      // Build call data for token.mint(to, amount)
+      const tokenAbi = ABI.TokenCl8yBridged as unknown as Abi;
+      const fn = (tokenAbi as Abi)
+        .filter((i): i is AbiFunction => i.type === "function")
+        .find((f) => f.name === "mint");
+      if (!fn) throw new Error("mint() not found in token ABI");
+      const data = encodeFunctionData({ abi: [fn] as unknown as Abi, functionName: fn.name, args: [address as Address, amount] });
+
+      await publicClient.simulateContract({
+        abi: ABI.AccessManager,
+        address: am,
+        functionName: "execute",
+        args: [token, data],
+        account: address,
+      });
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Simulation failed";
+      setMintSelfErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+      setMintSelfBusy((p) => ({ ...p, [key]: false }));
+      return;
+    }
+    try {
+      const tokenAbi = ABI.TokenCl8yBridged as unknown as Abi;
+      const fn = (tokenAbi as Abi)
+        .filter((i): i is AbiFunction => i.type === "function")
+        .find((f) => f.name === "mint")!;
+      const data = encodeFunctionData({ abi: [fn] as unknown as Abi, functionName: fn.name, args: [address as Address, amount] });
+      const hash = await writeContractAsync({
+        abi: ABI.AccessManager,
+        address: am,
+        functionName: "execute",
+        args: [token, data],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      setMintInputs((p) => ({ ...p, [key]: "" }));
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Mint failed";
+      setMintSelfErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+    } finally {
+      setMintSelfBusy((p) => ({ ...p, [key]: false }));
     }
   }
 
@@ -590,6 +743,7 @@ export default function TokensPage() {
     }
   }
 
+  if (!mounted) return null;
   return (
     <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-6 grid gap-4 sm:gap-6">
       {/* Token Creator */}
@@ -651,6 +805,7 @@ export default function TokensPage() {
                 const safeLogo = toSafeLogoSrc(meta?.logo);
                 const am = tokenAccessManagers[idx]?.data as Address | undefined;
                 const mintOk = Boolean(mintRoleChecks[idx]?.data);
+                const isMinterForToken = Boolean(userMinterChecksForTokenAM[idx]?.data);
                 const isAdminForToken = Boolean(adminChecksForTokenAM[idx]?.data);
                 return (
                   <div key={lower} className="border rounded p-2 grid gap-2 text-sm">
@@ -714,6 +869,20 @@ export default function TokensPage() {
                             {setMintBusy[lower] ? "Setting…" : "SET"}
                           </Button>
                         </>
+                      )}
+                      {address && mintOk && isMinterForToken && (
+                        <div className="inline-flex items-center gap-2">
+                          <Input
+                            className="w-36"
+                            placeholder="Amount"
+                            value={mintInputs[lower] ?? ""}
+                            onChange={(e) => setMintInputs((p) => ({ ...p, [lower]: e.target.value }))}
+                          />
+                          <Button size="sm" onClick={() => handleMintToSelf(idx)} disabled={Boolean(mintSelfBusy[lower])}>
+                            {mintSelfBusy[lower] ? "Minting…" : "Mint to me"}
+                          </Button>
+                          {mintSelfErrors[lower] && <div className="text-xs text-red-600">{mintSelfErrors[lower]}</div>}
+                        </div>
                       )}
                       {registerErrors[lower] && <div className="text-xs text-red-600">{registerErrors[lower]}</div>}
                     </div>
