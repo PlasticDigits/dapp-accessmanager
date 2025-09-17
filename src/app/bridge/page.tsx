@@ -42,6 +42,7 @@ type Deposit = {
 type Withdraw = {
   srcChainKey: Hex;
   token: Address;
+  destAccount: Hex;
   to: Address;
   amount: bigint;
   nonce: bigint;

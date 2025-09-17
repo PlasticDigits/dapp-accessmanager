@@ -688,8 +688,6 @@ export default function RolesPage() {
       const knownKey = getKnownKeyForAddressOnThisChain(t as Address);
       if (knownKey) {
         result.targets.push({ knownKey, selectorsByRole: byRole });
-      } else {
-        result.targets.push({ address: t as Address, selectorsByRole: byRole });
       }
     }
 
