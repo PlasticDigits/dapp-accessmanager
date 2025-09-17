@@ -829,6 +829,62 @@ export default function BridgePage() {
     },
   });
 
+  // View-chain token metadata for withdraw tokens shown in the view section
+  const uniqueViewWithdrawTokens = useMemo(() => {
+    const set = new Set<string>();
+    const out: Address[] = [];
+    for (const entry of (withdrawsAndApprovalsViewQuery.data ?? [])) {
+      const token = entry.withdraw?.token as Address | undefined;
+      if (!token) continue;
+      const lower = (token as string).toLowerCase();
+      if (set.has(lower)) continue;
+      set.add(lower);
+      out.push(token);
+    }
+    return out;
+  }, [withdrawsAndApprovalsViewQuery.data]);
+
+  const viewWithdrawTokenMetaQueries = useQueries({
+    queries: uniqueViewWithdrawTokens.map((t) => ({
+      queryKey: ["withdraw-token-meta", withdrawViewChainId, t],
+      enabled: Boolean(xchainClients[withdrawViewChainId] && t),
+      staleTime: 60_000,
+      queryFn: async (): Promise<{ name?: string; symbol?: string; logoURI?: string; decimals?: number } | undefined> => {
+        const client = xchainClients[withdrawViewChainId];
+        if (!client) return undefined;
+        try {
+          const [name, symbol, logo, decimals] = await Promise.all([
+            client.readContract({ abi: ABI.TokenCl8yBridged as unknown as Abi, address: t as Address, functionName: "name", args: [] }) as Promise<string>,
+            client.readContract({ abi: ABI.TokenCl8yBridged as unknown as Abi, address: t as Address, functionName: "symbol", args: [] }) as Promise<string>,
+            client.readContract({ abi: ABI.TokenCl8yBridged as unknown as Abi, address: t as Address, functionName: "logoLink", args: [] }) as Promise<string>,
+            client.readContract({ abi: ABI.TokenCl8yBridged as unknown as Abi, address: t as Address, functionName: "decimals", args: [] }) as Promise<number>,
+          ]);
+          return { name, symbol, logoURI: logo, decimals };
+        } catch {
+          try {
+            const [name, symbol, decimals] = await Promise.all([
+              xchainClients[withdrawViewChainId].readContract({ abi: ERC20_ABI, address: t as Address, functionName: "name", args: [] }) as Promise<string>,
+              xchainClients[withdrawViewChainId].readContract({ abi: ERC20_ABI, address: t as Address, functionName: "symbol", args: [] }) as Promise<string>,
+              xchainClients[withdrawViewChainId].readContract({ abi: ERC20_ABI, address: t as Address, functionName: "decimals", args: [] }) as Promise<number>,
+            ]);
+            return { name, symbol, decimals };
+          } catch {
+            return undefined;
+          }
+        }
+      },
+    }))
+  });
+
+  const viewWithdrawTokenMetaMap = useMemo(() => {
+    const map: Record<string, { name?: string; symbol?: string; logoURI?: string; decimals?: number }> = {};
+    uniqueViewWithdrawTokens.forEach((t, idx) => {
+      const data = viewWithdrawTokenMetaQueries[idx]?.data;
+      if (data) map[(t as string).toLowerCase()] = data;
+    });
+    return map;
+  }, [uniqueViewWithdrawTokens, viewWithdrawTokenMetaQueries]);
+
   // Token metadata for withdraw tokens on the current chain (to match deposit formatting)
   const uniqueWithdrawTokens = useMemo(() => {
     const set = new Set<string>();
@@ -849,15 +905,16 @@ export default function BridgePage() {
       queryKey: ["withdraw-token-meta", chainId, t],
       enabled: Boolean(publicClient && t),
       staleTime: 60_000,
-      queryFn: async (): Promise<{ name?: string; symbol?: string; decimals?: number } | undefined> => {
+      queryFn: async (): Promise<{ name?: string; symbol?: string; logoURI?: string; decimals?: number } | undefined> => {
         if (!publicClient) return undefined;
         try {
-          const [name, symbol, decimals] = await Promise.all([
+          const [name, symbol, logo, decimals] = await Promise.all([
             publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "name", args: [] }) as Promise<string>,
             publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "symbol", args: [] }) as Promise<string>,
+            publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "logoLink", args: [] }) as Promise<string>,
             publicClient.readContract({ abi: ABI.TokenCl8yBridged, address: t as Address, functionName: "decimals", args: [] }) as Promise<number>,
           ]);
-          return { name, symbol, decimals };
+          return { name, symbol, logoURI: logo, decimals };
         } catch {
           try {
             const [name, symbol, decimals] = await Promise.all([
@@ -875,7 +932,7 @@ export default function BridgePage() {
   });
 
   const withdrawTokenMetaMap = useMemo(() => {
-    const map: Record<string, { name?: string; symbol?: string; decimals?: number }> = {};
+    const map: Record<string, { name?: string; symbol?: string; logoURI?: string; decimals?: number }> = {};
     uniqueWithdrawTokens.forEach((t, idx) => {
       const data = withdrawTokenMetaQueries[idx]?.data;
       if (data) map[(t as string).toLowerCase()] = data;
@@ -1366,19 +1423,44 @@ export default function BridgePage() {
             <div className="grid gap-2">
               {(withdrawsAndApprovalsViewQuery.data ?? []).map(({ hash, withdraw, approval }) => (
                 <div key={hash} className="border rounded p-2 grid gap-2">
-                  <div className="text-xs text-muted-foreground break-all">Hash: {hash}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <BlockyIcon seed={hash as string} />
+                    <div className="text-xs text-muted-foreground truncate">{hash}</div>
+                  </div>
                   {withdraw ? (
                     <div className="grid gap-2 md:grid-cols-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="h-7 w-7 rounded-full bg-black shrink-0" />
+                        {(() => {
+                          const localMeta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                          const viewMeta = viewWithdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                          const meta = viewMeta || localMeta;
+                          const logo = toSafeLogoSrc(meta?.logoURI);
+                          return logo ? (
+                            <img
+                              src={logo}
+                              alt={meta?.name || meta?.symbol || (withdraw.token as string)}
+                              referrerPolicy="no-referrer"
+                              decoding="async"
+                              loading="lazy"
+                              className="h-7 w-7 rounded-full object-contain bg-black shrink-0"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
+                          ) : (
+                            <div className="h-7 w-7 rounded-full bg-black shrink-0" />
+                          );
+                        })()}
                         <div className="flex flex-col min-w-0">
                           <div className="truncate">
                             {(() => {
-                              const meta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const localMeta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const viewMeta = viewWithdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const meta = viewMeta || localMeta;
                               return meta?.name || "Unknown token";
                             })()}
                             {(() => {
-                              const meta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const localMeta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const viewMeta = viewWithdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                              const meta = viewMeta || localMeta;
                               return meta?.symbol ? <span className="text-muted-foreground"> ({meta.symbol})</span> : null;
                             })()}
                           </div>
@@ -1390,8 +1472,9 @@ export default function BridgePage() {
                       <div className="min-w-0">
                         <div>
                           Amount: {(() => {
-                            const meta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
-                            const d = meta?.decimals;
+                            const localMeta = withdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                            const viewMeta = viewWithdrawTokenMetaMap[(withdraw.token as string).toLowerCase()];
+                            const d = (viewMeta?.decimals ?? localMeta?.decimals);
                             if (typeof d === "number" && d >= 0) {
                               try {
                                 const whole = withdraw.amount / (10n ** BigInt(d));
@@ -1408,8 +1491,16 @@ export default function BridgePage() {
                         <div className="text-xs text-muted-foreground">Nonce: {fmtBig(withdraw.nonce)}</div>
                       </div>
                       <div className="min-w-0">
-                        <div>Destination: <a className="underline" href={getAddressExplorerUrl(chainId, withdraw.to)} target="_blank" rel="noopener noreferrer">{withdraw.to}</a></div>
-                        <div className="break-all">Src Chain Key: {withdraw.srcChainKey}</div>
+                        <div>
+                          Source: {(() => {
+                            const srcId = chainIdFromKey(withdraw.srcChainKey);
+                            const label = getFriendlyNameForChainKey(withdraw.srcChainKey as Hex) ?? (srcId ? String(srcId) : String(withdraw.srcChainKey));
+                            return label;
+                          })()}
+                        </div>
+                        <div>
+                          Dest Address: <a className="underline" href={getAddressExplorerUrl(chainId, withdraw.to)} target="_blank" rel="noopener noreferrer">{withdraw.to}</a>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1427,10 +1518,13 @@ export default function BridgePage() {
                       {withdraw && withdrawViewChainId === chainId && (
                         <div className="mt-1">
                           {(() => {
-                            const delay = withdrawDelayQuery.data ?? 0n;
-                            const now = nowViewQuery.data ?? 0n;
-                            const allowedAt = (approval.approvedAt ?? 0n) + delay;
-                            const remaining = allowedAt > now ? Number(allowedAt - now) : 0;
+                            const delayVal = withdrawDelayQuery.data ?? 0n;
+                            const nowVal = nowViewQuery.data ?? 0n;
+                            const delayBig = (typeof delayVal === "bigint") ? delayVal : BigInt(delayVal ?? 0);
+                            const nowBig = (typeof nowVal === "bigint") ? nowVal : BigInt(nowVal ?? 0);
+                            const approvedAt = (typeof approval.approvedAt === "bigint") ? approval.approvedAt : BigInt(approval.approvedAt ?? 0);
+                            const allowedAt = approvedAt + delayBig;
+                            const remaining = allowedAt > nowBig ? Number(allowedAt - nowBig) : 0;
                             const canClick = approval.isApproved && !approval.executed && !approval.cancelled && remaining === 0 && Boolean(address);
                             return (
                               <Button
