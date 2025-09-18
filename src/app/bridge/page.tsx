@@ -1528,12 +1528,18 @@ export default function BridgePage() {
                       <div>Fee Recipient: <a className="underline" href={getAddressExplorerUrl(chainId, approval.feeRecipient)} target="_blank" rel="noopener noreferrer">{approval.feeRecipient}</a></div>
                       <div>Approved At: {fmtBig(approval.approvedAt)}</div>
                       <div>Deduct From Amount: {approval.deductFromAmount ? "Yes" : "No"}</div>
-                      {withdraw && withdrawViewChainId === chainId && (
+                      {withdrawViewChainId === chainId && (
                         <div className="mt-1">
                           {(() => {
                             const delayVal = withdrawDelayQuery.data ?? 0n;
                             const delayBig = (typeof delayVal === "bigint") ? delayVal : BigInt(delayVal ?? 0);
-                            const nowBig = BigInt(nowViewUiSec > 0 ? nowViewUiSec : 0);
+                            const nowSec = (() => {
+                              if (nowViewUiSec > 0) return nowViewUiSec;
+                              const q = nowViewQuery.data;
+                              if (typeof q === "bigint") return Number(q);
+                              return Math.floor(Date.now() / 1000);
+                            })();
+                            const nowBig = BigInt(nowSec);
                             const approvedAt = (typeof approval.approvedAt === "bigint") ? approval.approvedAt : BigInt(approval.approvedAt ?? 0);
                             const allowedAt = approvedAt + delayBig;
                             const remaining = allowedAt > nowBig ? Number(allowedAt - nowBig) : 0;
