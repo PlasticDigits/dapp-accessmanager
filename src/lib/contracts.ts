@@ -122,85 +122,82 @@ export const CREATE3_DEPLOYER_ADDRESS: Partial<Record<number, Address>> = {
 };
 
 export const ACCESS_MANAGER_ADDRESSES: Record<number, Address> = {
-  [bsc.id]: "0x4573242bf542ED708e6D55385be4f4CFacEBef4D",
-  [bscTestnet.id]: "0x4573242bf542ED708e6D55385be4f4CFacEBef4D",
-  [opBNBTestnet.id]: "0x4573242bf542ED708e6D55385be4f4CFacEBef4D",
+  [bsc.id]: "0xe31d91D158D54738427EC16fDD6dacCA2dC5E746",
+  [bscTestnet.id]: "0xe31d91D158D54738427EC16fDD6dacCA2dC5E746",
+  [opBNBTestnet.id]: "0xe31d91D158D54738427EC16fDD6dacCA2dC5E746",
 } as const;
 
 export function getAccessManagerAddress(chainId: number): Address {
-  const envKey = `NEXT_PUBLIC_ACCESS_MANAGER_ADDRESS_${chainId}`;
-  const fromEnv = process.env[envKey] as Address | undefined;
-  return (
-    fromEnv && fromEnv.length > 0 ? fromEnv : ACCESS_MANAGER_ADDRESSES[chainId]
-  ) as Address;
+  // Source from the global configuration map only (no env at runtime)
+  return ACCESS_MANAGER_ADDRESSES[chainId] as Address;
 }
 
 export const FACTORY_TOKEN_CL8Y_BRIDGED_ADDRESS: Partial<
   Record<number, Address>
 > = {
-  [bsc.id]: "0xFf5a409d82aC4925A0DE9F2f1fbA0fa75918C7C0",
-  [bscTestnet.id]: "0xFf5a409d82aC4925A0DE9F2f1fbA0fa75918C7C0",
-  [opBNBTestnet.id]: "0xFf5a409d82aC4925A0DE9F2f1fbA0fa75918C7C0",
+  [bsc.id]: "0x79D1427aC6B34Ac32871cf584F361477f2216483",
+  [bscTestnet.id]: "0x79D1427aC6B34Ac32871cf584F361477f2216483",
+  [opBNBTestnet.id]: "0x79D1427aC6B34Ac32871cf584F361477f2216483",
 };
 
 export const CHAIN_REGISTRY_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x5171f51454e0B818b9D8EbfEde36E3dDcBe0C94A",
-  [bscTestnet.id]: "0x5171f51454e0B818b9D8EbfEde36E3dDcBe0C94A",
-  [opBNBTestnet.id]: "0x5171f51454e0B818b9D8EbfEde36E3dDcBe0C94A",
+  [bsc.id]: "0xb6dEE348f23a0603a668C78c71E2a2E5bab57b04",
+  [bscTestnet.id]: "0xb6dEE348f23a0603a668C78c71E2a2E5bab57b04",
+  [opBNBTestnet.id]: "0xb6dEE348f23a0603a668C78c71E2a2E5bab57b04",
 };
 
 export const TOKEN_REGISTRY_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x3ab9df4B6585D2289FBC905a93790C23E52De30A",
-  [bscTestnet.id]: "0x3ab9df4B6585D2289FBC905a93790C23E52De30A",
-  [opBNBTestnet.id]: "0x3ab9df4B6585D2289FBC905a93790C23E52De30A",
+  [bsc.id]: "0xb00e2176507f719C00a54dCC4d3BB9855C0DB416",
+  [bscTestnet.id]: "0xb00e2176507f719C00a54dCC4d3BB9855C0DB416",
+  [opBNBTestnet.id]: "0xb00e2176507f719C00a54dCC4d3BB9855C0DB416",
 };
 
 export const MINT_BURN_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x48F18D1e6dc86DF642aC1547f4F404F8f121520c",
-  [bscTestnet.id]: "0x48F18D1e6dc86DF642aC1547f4F404F8f121520c",
-  [opBNBTestnet.id]: "0x48F18D1e6dc86DF642aC1547f4F404F8f121520c",
+  [bsc.id]: "0x7E9D705eF28DFe8E8A974bAc15373921b7ecfFcB",
+  [bscTestnet.id]: "0x7E9D705eF28DFe8E8A974bAc15373921b7ecfFcB",
+  [opBNBTestnet.id]: "0x7E9D705eF28DFe8E8A974bAc15373921b7ecfFcB",
 };
 
 export const LOCK_UNLOCK_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x470CC6eA7EfAd150Ee0e29C45aBd66FE7e3A02db",
-  [bscTestnet.id]: "0x470CC6eA7EfAd150Ee0e29C45aBd66FE7e3A02db",
-  [opBNBTestnet.id]: "0x470CC6eA7EfAd150Ee0e29C45aBd66FE7e3A02db",
+  [bsc.id]: "0xCdD664503df40f31B3b7c357D12A91669c391E8c",
+  [bscTestnet.id]: "0xCdD664503df40f31B3b7c357D12A91669c391E8c",
+  [opBNBTestnet.id]: "0xCdD664503df40f31B3b7c357D12A91669c391E8c",
 };
 
 export const CL8Y_BRIDGE_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x5cd4f9caBdbc0Cbe29E926d7068048479db3fE81",
-  [bscTestnet.id]: "0x5cd4f9caBdbc0Cbe29E926d7068048479db3fE81",
-  [opBNBTestnet.id]: "0x5cd4f9caBdbc0Cbe29E926d7068048479db3fE81",
+  [bsc.id]: "0xf1Ba04febE0193697ca2A59f58A8E75F1Ca58D6a",
+  [bscTestnet.id]: "0xf1Ba04febE0193697ca2A59f58A8E75F1Ca58D6a",
+  [opBNBTestnet.id]: "0xf1Ba04febE0193697ca2A59f58A8E75F1Ca58D6a",
 };
 
 export const DATASTORE_SET_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0xA28CeCAE2a829B4f9BEAC4d9E20697247C151E5F",
-  [bscTestnet.id]: "0xA28CeCAE2a829B4f9BEAC4d9E20697247C151E5F",
-  [opBNBTestnet.id]: "0xA28CeCAE2a829B4f9BEAC4d9E20697247C151E5F",
+  [bsc.id]: "0x9673CC1689c30fDc16669772d214581C7404446A",
+  [bscTestnet.id]: "0x9673CC1689c30fDc16669772d214581C7404446A",
+  [opBNBTestnet.id]: "0x9673CC1689c30fDc16669772d214581C7404446A",
 };
 
 export const GUARD_BRIDGE_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0xcEe50bE74D2BB6AD8Df9D2734dC022cAF664416C",
-  [bscTestnet.id]: "0xcEe50bE74D2BB6AD8Df9D2734dC022cAF664416C",
-  [opBNBTestnet.id]: "0xcEe50bE74D2BB6AD8Df9D2734dC022cAF664416C",
+  [bsc.id]: "0x0bC66768f1270ad707F55042eb20aDc5283Ee74C",
+  [bscTestnet.id]: "0x0bC66768f1270ad707F55042eb20aDc5283Ee74C",
+  [opBNBTestnet.id]: "0x0bC66768f1270ad707F55042eb20aDc5283Ee74C",
 };
 
 export const BLACKLIST_BASIC_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0xE0269a536bEa2729067f30DD618B009d9E4bC713",
-  [bscTestnet.id]: "0xE0269a536bEa2729067f30DD618B009d9E4bC713",
-  [opBNBTestnet.id]: "0xE0269a536bEa2729067f30DD618B009d9E4bC713",
+  [bsc.id]: "0xE6255c16B61D03E0cD093A2b7944b2d63B6e1825",
+  [bscTestnet.id]: "0xE6255c16B61D03E0cD093A2b7944b2d63B6e1825",
+  [opBNBTestnet.id]: "0xE6255c16B61D03E0cD093A2b7944b2d63B6e1825",
 };
 
 export const TOKEN_RATE_LIMIT_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x9CCFd491b1216a4b1C00c84266b2cac4c9558c48",
-  [bscTestnet.id]: "0x9CCFd491b1216a4b1C00c84266b2cac4c9558c48",
-  [opBNBTestnet.id]: "0x9CCFd491b1216a4b1C00c84266b2cac4c9558c48",
+  [bsc.id]: "0xF8C12808298A85FBd2F1089e5bc239C405855686",
+  [bscTestnet.id]: "0xF8C12808298A85FBd2F1089e5bc239C405855686",
+  [opBNBTestnet.id]: "0xF8C12808298A85FBd2F1089e5bc239C405855686",
 };
 
 export const BRIDGE_ROUTER_ADDRESS: Partial<Record<number, Address>> = {
-  [bsc.id]: "0x52Cb5DFCf0E0d086deeFe22430207C86d9701737",
-  [bscTestnet.id]: "0x52Cb5DFCf0E0d086deeFe22430207C86d9701737",
-  [opBNBTestnet.id]: "0x52Cb5DFCf0E0d086deeFe22430207C86d9701737",
+  [bsc.id]: "0xf75ad45fC50330c3687fFd7D676f9642aAE54a0f",
+  [bscTestnet.id]: "0xf75ad45fC50330c3687fFd7D676f9642aAE54a0f",
+  [opBNBTestnet.id]: "0xf75ad45fC50330c3687fFd7D676f9642aAE54a0f",
 };
 
 export type KnownContractKey =

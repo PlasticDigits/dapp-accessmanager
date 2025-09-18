@@ -54,7 +54,7 @@ export function getPeerEvmChainIds(currentChainId: number): number[] {
   return peers.filter((id) => id !== currentChainId);
 }
 
-type RpcMap = Partial<Record<number, string>>;
+// Note: keep transports sourced from chain metadata, not env
 
 export function makeTransportsFromConfig(): Record<
   number,

@@ -828,6 +828,18 @@ export default function BridgePage() {
       return (b.timestamp ?? 0n) as bigint;
     },
   });
+  // Live UI countdown synced to chain time: update per second and resync on query updates
+  const [nowViewUiSec, setNowViewUiSec] = useState<number>(0);
+  useEffect(() => {
+    const base = Number(nowViewQuery.data ?? 0n);
+    if (base > 0) setNowViewUiSec(base);
+  }, [nowViewQuery.data]);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNowViewUiSec((prev) => (prev > 0 ? prev + 1 : prev));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // View-chain token metadata for withdraw tokens shown in the view section
   const uniqueViewWithdrawTokens = useMemo(() => {
@@ -1054,25 +1066,26 @@ export default function BridgePage() {
     }
   }
 
-  async function handleWithdrawCall(w: Withdraw) {
+  async function handleWithdrawCall(hash: Hex) {
     if (!publicClient || !router || !address) return;
     try {
       await publicClient.simulateContract({
         abi: ROUTER_CALL_ABI,
         address: router as Address,
         functionName: "withdraw" as const,
-        args: [w.srcChainKey, w.token, w.to, w.amount, w.nonce],
+        args: [hash],
         account: address,
       });
-      const hash = await writeContractAsync({
+      const txHash = await writeContractAsync({
         abi: ROUTER_CALL_ABI,
         address: router as Address,
         functionName: "withdraw" as const,
-        args: [w.srcChainKey, w.token, w.to, w.amount, w.nonce],
+        args: [hash],
       });
-      await publicClient.waitForTransactionReceipt({ hash });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
       await queryClient.invalidateQueries({ queryKey: ["bridge", chainId, router] });
     } catch {
+      console.error("handleWithdrawCall error", hash);
       // noop; errors shown inline in UI via disabled conditions
     }
   }
@@ -1519,9 +1532,8 @@ export default function BridgePage() {
                         <div className="mt-1">
                           {(() => {
                             const delayVal = withdrawDelayQuery.data ?? 0n;
-                            const nowVal = nowViewQuery.data ?? 0n;
                             const delayBig = (typeof delayVal === "bigint") ? delayVal : BigInt(delayVal ?? 0);
-                            const nowBig = (typeof nowVal === "bigint") ? nowVal : BigInt(nowVal ?? 0);
+                            const nowBig = BigInt(nowViewUiSec > 0 ? nowViewUiSec : 0);
                             const approvedAt = (typeof approval.approvedAt === "bigint") ? approval.approvedAt : BigInt(approval.approvedAt ?? 0);
                             const allowedAt = approvedAt + delayBig;
                             const remaining = allowedAt > nowBig ? Number(allowedAt - nowBig) : 0;
@@ -1531,7 +1543,7 @@ export default function BridgePage() {
                                 size="sm"
                                 className="h-7 px-2"
                                 disabled={!canClick}
-                                onClick={() => handleWithdrawCall(withdraw)}
+                                onClick={() => handleWithdrawCall(hash)}
                                 title={remaining > 0 ? `Wait ${remaining}s` : undefined}
                               >
                                 {remaining > 0 ? `Withdraw in ${remaining}s` : "Withdraw"}

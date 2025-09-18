@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
 import type { Address, Hex } from "viem";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,10 @@ export default function ChainsPage() {
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const queryClient = useQueryClient();
+
+  // Avoid hydration mismatches by rendering dynamic sections only after mount
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
 
   // ChainRegistry panel state
   const chainRegistryAddress = CHAIN_REGISTRY_ADDRESS[chainId] as Address | undefined;
@@ -226,7 +230,9 @@ export default function ChainsPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="text-sm text-muted-foreground">Missing peers detected for this environment:</div>
-          {missingEvmPeers.length === 0 ? (
+          {!isMounted ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : missingEvmPeers.length === 0 ? (
             <div className="text-sm text-muted-foreground">All EVM peers are registered.</div>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -238,7 +244,7 @@ export default function ChainsPage() {
             </div>
           )}
           <div className="flex items-center gap-2">
-            <Button onClick={handleSetupEvmPeers} disabled={!address || !chainRegistryAddress || evmSetupBusy || missingEvmPeers.length === 0}>
+            <Button onClick={handleSetupEvmPeers} disabled={!isMounted || !address || !chainRegistryAddress || evmSetupBusy || missingEvmPeers.length === 0}>
               {evmSetupBusy ? "Setting up…" : "Add all missing EVM chains"}
             </Button>
             {evmSetupError && <div className="text-xs text-red-600">{evmSetupError}</div>}
@@ -251,10 +257,12 @@ export default function ChainsPage() {
           <CardTitle>Registered Chains</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {(!chainKeysQuery.data || chainKeysQuery.data.length === 0) && (
+          {!isMounted ? (
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          ) : (!chainKeysQuery.data || chainKeysQuery.data.length === 0) ? (
             <div className="text-sm text-muted-foreground">No chains registered</div>
-          )}
-          {(chainKeysQuery.data ?? []).map((ck) => {
+          ) : null}
+          {(isMounted ? (chainKeysQuery.data ?? []) : []).map((ck) => {
             const key = (ck as string).toLowerCase();
             const busy = Boolean(removeBusy[key]);
             const friendly = getFriendlyNameForChainKey(ck as Hex);

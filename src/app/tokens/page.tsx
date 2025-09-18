@@ -1,6 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useMemo, useState, useEffect } from "react";
+import type { SyntheticEvent } from "react";
 import { useAccount, useChainId, usePublicClient, useWriteContract } from "wagmi";
 import type { Address, Hex, Abi, AbiFunction } from "viem";
 import { getFunctionSelector, encodeFunctionData } from "viem";
@@ -362,7 +364,6 @@ export default function TokensPage() {
   }
 
   const [setMintBusy, setSetMintBusy] = useState<Record<string, boolean>>({});
-  const [setMintErrors, setSetMintErrors] = useState<Record<string, string | undefined>>({});
   const [registerBusy, setRegisterBusy] = useState<Record<string, boolean>>({});
   const [registerErrors, setRegisterErrors] = useState<Record<string, string | undefined>>({});
 
@@ -376,7 +377,6 @@ export default function TokensPage() {
     if (!publicClient || !am || !mintBurn) return;
     const key = (createdTokensQuery.data?.[idx] as string | undefined)?.toLowerCase() ?? String(idx);
     setSetMintBusy((p) => ({ ...p, [key]: true }));
-    setSetMintErrors((p) => ({ ...p, [key]: undefined }));
     try {
       // Grant MINTER role to MintBurn
       await publicClient.simulateContract({
@@ -386,9 +386,7 @@ export default function TokensPage() {
         args: [ROLE.MINTER, mintBurn as Address, 0n],
         account: address,
       });
-    } catch (e) {
-      const msg = (e as { message?: string })?.message ?? "Simulation failed";
-      setSetMintErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+    } catch {
       setSetMintBusy((p) => ({ ...p, [key]: false }));
       return;
     }
@@ -428,9 +426,7 @@ export default function TokensPage() {
       }
       const tokenAddr = (createdTokensQuery.data?.[idx] ?? undefined) as Address | undefined;
       await queryClient.invalidateQueries({ queryKey: ["token-mintrole", chainId, tokenAddr, am] });
-    } catch (e) {
-      const msg = (e as { message?: string })?.message ?? "Grant failed";
-      setSetMintErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
+    } catch {
     } finally {
       setSetMintBusy((p) => ({ ...p, [key]: false }));
     }
@@ -552,16 +548,19 @@ export default function TokensPage() {
   const [tokenAddr, setTokenAddr] = useState<string>("");
   const [bridgeTypeLocal, setBridgeTypeLocal] = useState<string>("0");
   const [isTokenSubmitting, setIsTokenSubmitting] = useState(false);
+  const [tokenAddError, setTokenAddError] = useState<string | undefined>(undefined);
   const [destChainKey, setDestChainKey] = useState<string>("");
   const [destChainTokenAddrBytes32, setDestChainTokenAddrBytes32] = useState<string>("");
   const [destChainTokenDecimals, setDestChainTokenDecimals] = useState<string>("");
   const [isTokenDestSubmitting, setIsTokenDestSubmitting] = useState(false);
+  const [tokenDestError, setTokenDestError] = useState<string | undefined>(undefined);
 
-  const [tokenDestAddOpen, setTokenDestAddOpen] = useState<Record<string, boolean>>({});
+  
   // Per token+chain inline inputs
   const [destPerChainInputs, setDestPerChainInputs] = useState<Record<string, { mode: "same" | "custom"; addr: string; decimals: string }>>({});
-  const [tokenRemoveBusy, setTokenRemoveBusy] = useState<Record<string, boolean>>({});
+  
   const [tokenDestRemoveBusy, setTokenDestRemoveBusy] = useState<Record<string, boolean>>({});
+  const [inlineDestErrors, setInlineDestErrors] = useState<Record<string, string | undefined>>({});
 
   // TokenRegistry ABI helpers
   const tokenAbi = useMemo(() => ABI.TokenRegistry as unknown as Abi, []);
@@ -583,10 +582,7 @@ export default function TokensPage() {
     );
     return found?.name;
   }, [tokenAbiFunctions]);
-  const tokenRemoveFn = useMemo(
-    () => tokenAbiFunctions.find((f) => f.name === "removeToken"),
-    [tokenAbiFunctions]
-  );
+  
   const tokenDestKeysFn = useMemo(
     () => tokenAbiFunctions.find((f) => f.name === "getTokenDestChainKeys"),
     [tokenAbiFunctions]
@@ -647,6 +643,7 @@ export default function TokensPage() {
     if (!isAddress(tokenAddr)) return;
     try {
       setIsTokenSubmitting(true);
+      setTokenAddError(undefined);
       const hash = await writeContractAsync({
         abi: ABI.TokenRegistry,
         address: tokenRegistry,
@@ -655,6 +652,9 @@ export default function TokensPage() {
       });
       await publicClient!.waitForTransactionReceipt({ hash });
       await queryClient.invalidateQueries({ queryKey: ["registered-tokens", chainId, tokenRegistry] });
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Submit failed";
+      setTokenAddError(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
     } finally {
       setIsTokenSubmitting(false);
     }
@@ -668,6 +668,7 @@ export default function TokensPage() {
     if (!destChainKey || !destChainTokenAddrBytes32) return;
     try {
       setIsTokenDestSubmitting(true);
+      setTokenDestError(undefined);
       const hash = await writeContractAsync({
         abi: ABI.TokenRegistry,
         address: tokenRegistry,
@@ -676,33 +677,21 @@ export default function TokensPage() {
       });
       await publicClient!.waitForTransactionReceipt({ hash });
       await queryClient.invalidateQueries({ queryKey: ["token-dest-keys", chainId, tokenRegistry, tokenAddr as Address] });
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Submit failed";
+      setTokenDestError(/user rejected/i.test(msg) ? "Transaction canceled" : msg);
     } finally {
       setIsTokenDestSubmitting(false);
     }
   }
 
-  async function removeTokenInline(token: Address) {
-    if (!address || !tokenRegistry || !tokenRemoveFn) return;
-    const key = (token as string).toLowerCase();
-    setTokenRemoveBusy((p) => ({ ...p, [key]: true }));
-    try {
-      const hash = await writeContractAsync({
-        abi: ABI.TokenRegistry,
-        address: tokenRegistry,
-        functionName: "removeToken",
-        args: [token],
-      });
-      await publicClient!.waitForTransactionReceipt({ hash });
-      await queryClient.invalidateQueries({ queryKey: ["registered-tokens", chainId, tokenRegistry] });
-    } finally {
-      setTokenRemoveBusy((p) => ({ ...p, [key]: false }));
-    }
-  }
+  
 
   async function removeTokenDestInline(token: Address, chainKey: Hex) {
     if (!address || !tokenRegistry || !tokenDestRemoveFn) return;
     const key = `${(token as string).toLowerCase()}-${(chainKey as string).toLowerCase()}`;
     setTokenDestRemoveBusy((p) => ({ ...p, [key]: true }));
+    setInlineDestErrors((p) => ({ ...p, [key]: undefined }));
     try {
       const hash = await writeContractAsync({
         abi: ABI.TokenRegistry,
@@ -712,6 +701,9 @@ export default function TokensPage() {
       });
       await publicClient!.waitForTransactionReceipt({ hash });
       await queryClient.invalidateQueries({ queryKey: ["token-dest-keys", chainId, tokenRegistry, token] });
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Remove failed";
+      setInlineDestErrors((p) => ({ ...p, [key]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
       setTokenDestRemoveBusy((p) => ({ ...p, [key]: false }));
     }
@@ -728,6 +720,7 @@ export default function TokensPage() {
     const addrBytes32 = inputs.mode === "same" ? addressToBytes32(token as string) : addressToBytes32(inputs.addr);
     if ((addrBytes32 as string).length !== 66) return;
     setTokenDestRemoveBusy((p) => ({ ...p, [`add-${key}`]: true }));
+    setInlineDestErrors((p) => ({ ...p, [`add-${key}`]: undefined }));
     try {
       const hash = await writeContractAsync({
         abi: ABI.TokenRegistry,
@@ -738,6 +731,9 @@ export default function TokensPage() {
       await publicClient!.waitForTransactionReceipt({ hash });
       await queryClient.invalidateQueries({ queryKey: ["token-dest-keys", chainId, tokenRegistry, token] });
       setDestPerChainInputs((p) => ({ ...p, [key]: { mode: "same", addr: "", decimals: "" } }));
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Register failed";
+      setInlineDestErrors((p) => ({ ...p, [`add-${key}`]: /user rejected/i.test(msg) ? "Transaction canceled" : msg }));
     } finally {
       setTokenDestRemoveBusy((p) => ({ ...p, [`add-${key}`]: false }));
     }
@@ -819,9 +815,8 @@ export default function TokensPage() {
                             decoding="async"
                             loading="lazy"
                             className="h-12 w-12 rounded-full object-contain bg-black"
-                            onError={(e) => {
-                              const el = e.currentTarget as HTMLImageElement;
-                              el.style.display = "none";
+                            onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                              e.currentTarget.style.display = "none";
                             }}
                           />
                         ) : (
@@ -915,6 +910,7 @@ export default function TokensPage() {
             <Button onClick={handleAddToken} disabled={!address || !tokenRegistry || isTokenSubmitting}>
               {isTokenSubmitting ? "Adding..." : "Add Token"}
             </Button>
+            {tokenAddError && <div className="text-xs text-red-600">{tokenAddError}</div>}
           </div>
 
           <div className="border-t md:col-span-4 my-2" />
@@ -936,6 +932,7 @@ export default function TokensPage() {
               {isTokenDestSubmitting ? "Submitting..." : "Add Token Dest Chain Key"}
             </Button>
             <div className="text-sm text-muted-foreground truncate max-w-full">Target: {tokenRegistry ?? "N/A"}</div>
+            {tokenDestError && <div className="text-xs text-red-600">{tokenDestError}</div>}
           </div>
         </CardContent>
       </Card>
@@ -951,7 +948,6 @@ export default function TokensPage() {
           )}
           {(tokensQuery.data ?? []).map((t, idx) => {
             const lower = (t as string).toLowerCase();
-            const busy = Boolean(tokenRemoveBusy[lower]);
             const href = getAddressExplorerUrl(chainId, t as Address);
             const dests = (tokenDestQueries[idx]?.data ?? []) as readonly Hex[];
             const meta = tokenMetaQueries[idx]?.data as | { name: string; symbol: string; logo?: string } | undefined;
@@ -971,8 +967,8 @@ export default function TokensPage() {
                         decoding="async"
                         loading="lazy"
                         className="h-10 w-10 rounded-full object-contain bg-black shrink-0"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                        onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                          e.currentTarget.style.display = "none";
                         }}
                       />
                     ) : (
@@ -1019,15 +1015,22 @@ export default function TokensPage() {
                                 </a>
                               )}
                               {isReg && (
-                                <button
-                                  type="button"
-                                  aria-label="Unregister destination"
-                                  title="Unregister"
-                                  className="inline-flex items-center text-xs hover:text-red-600"
-                                  onClick={() => removeTokenDestInline(t as Address, evmChainIdToKey(c.id) as Hex)}
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-label="Unregister destination"
+                                    title="Unregister"
+                                    className="inline-flex items-center text-xs hover:text-red-600"
+                                    onClick={() => removeTokenDestInline(t as Address, evmChainIdToKey(c.id) as Hex)}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                  {inlineDestErrors[`${lower}-${(evmChainIdToKey(c.id) as string).toLowerCase()}`] && (
+                                    <div className="text-xs text-red-600">
+                                      {inlineDestErrors[`${lower}-${(evmChainIdToKey(c.id) as string).toLowerCase()}`]}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
@@ -1069,6 +1072,9 @@ export default function TokensPage() {
                                   {addBusy ? "Registering..." : "Register"}
                                 </Button>
                               </div>
+                              {inlineDestErrors[`add-${inputKey}`] && (
+                                <div className="md:col-span-4 text-xs text-red-600">{inlineDestErrors[`add-${inputKey}`]}</div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1098,6 +1104,7 @@ export default function TokensPage() {
                               >
                                 <X className="w-3 h-3" />
                               </button>
+                              {inlineDestErrors[rmKey] && <div className="text-xs text-red-600">{inlineDestErrors[rmKey]}</div>}
                             </div>
                           );
                         })}
