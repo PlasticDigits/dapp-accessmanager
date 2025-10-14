@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { ChevronLeft, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
 import { useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
 import { ABI } from "@/lib/abi";
 import {
@@ -60,6 +61,8 @@ type WithdrawApproval = {
 
 const PAGE_SIZE = 100n;
 const MAX_ITEMS = 10000n;
+const DEPOSITS_PER_PAGE = 20;
+const WITHDRAWS_PER_PAGE = 20;
 
 export default function BridgePage() {
   const { address } = useAccount();
@@ -242,7 +245,20 @@ export default function BridgePage() {
   const [formError, setFormError] = useState<string | undefined>(undefined);
   const [withdrawViewChainId, setWithdrawViewChainId] = useState<number>(chainId);
   const [depositViewChainId, setDepositViewChainId] = useState<number>(chainId);
-  useEffect(() => { setWithdrawViewChainId(chainId); setDepositViewChainId(chainId); }, [chainId]);
+  const [depositPage, setDepositPage] = useState(0);
+  const [withdrawPage, setWithdrawPage] = useState(0);
+  useEffect(() => {
+    setWithdrawViewChainId(chainId);
+    setDepositViewChainId(chainId);
+    setDepositPage(0);
+    setWithdrawPage(0);
+  }, [chainId]);
+  useEffect(() => {
+    setDepositPage(0);
+  }, [depositViewChainId]);
+  useEffect(() => {
+    setWithdrawPage(0);
+  }, [withdrawViewChainId]);
 
   const tokenMetaByAddr = useMemo(() => {
     const map: Record<string, TokenListItem> = {};
@@ -428,15 +444,29 @@ export default function BridgePage() {
   });
 
   const depositsQuery = useQuery({
-    queryKey: ["bridge-view", depositViewChainId, depositViewBridgeAddr, "deposits", depositHashesQuery.data?.length],
-    queryFn: async (): Promise<Array<{ hash: Hex; item: Deposit }>> => {
+    queryKey: [
+      "bridge-view",
+      depositViewChainId,
+      depositViewBridgeAddr,
+      "deposits",
+      depositHashesQuery.data?.length,
+      depositPage,
+      DEPOSITS_PER_PAGE,
+    ],
+    queryFn: async (): Promise<{
+      items: Array<{ hash: Hex; item: Deposit }>;
+      total: number;
+    }> => {
       const cId = depositViewChainId;
       const bAddr = depositViewBridgeAddr as Address;
       const client = xchainClients[cId];
-      if (!client) return [];
+      if (!client) return { items: [], total: 0 };
       const hashes = (depositHashesQuery.data ?? []) as readonly Hex[];
-      if (!hashes.length) return [];
-      const contracts = hashes.map((h) => ({
+      if (!hashes.length) return { items: [], total: 0 };
+      const total = hashes.length;
+      const start = depositPage * DEPOSITS_PER_PAGE;
+      const slice = hashes.slice(start, start + DEPOSITS_PER_PAGE);
+      const contracts = slice.map((h) => ({
         abi: ABI.CL8YBridge as Abi,
         address: bAddr as Address,
         functionName: "getDepositFromHash" as const,
@@ -447,11 +477,11 @@ export default function BridgePage() {
       res.forEach((r, i) => {
         if (r.status === "success") {
           const tup = r.result as unknown as Deposit;
-          items.push({ hash: hashes[i] as Hex, item: tup });
+          items.push({ hash: slice[i] as Hex, item: tup });
         }
       });
       if (DEBUG_BRIDGE) console.debug("depositView.deposits", { chainId: depositViewChainId, bridge: depositViewBridgeAddr, count: items.length });
-      return items;
+      return { items, total };
     },
     enabled: Boolean(depositViewChainId && depositViewBridgeAddr && (depositHashesQuery.data ?? []).length),
     staleTime: 30_000,
@@ -459,8 +489,10 @@ export default function BridgePage() {
   });
 
   // Build unique destination token keys from deposits for metadata lookups on destination chains
+  const depositItems = useMemo(() => depositsQuery.data?.items ?? [], [depositsQuery.data?.items]);
+  const depositTotal = depositsQuery.data?.total ?? 0;
   const uniqueDestTokens = useMemo(() => {
-    const items = depositsQuery.data ?? [];
+    const items = depositItems;
     const set = new Set<string>();
     const entries: Array<{ key: string; chainId: number; address: Address }> = [];
     for (const { item } of items) {
@@ -473,7 +505,7 @@ export default function BridgePage() {
       entries.push({ key: k, chainId: cid, address: addr });
     }
     return entries;
-  }, [depositsQuery.data]);
+  }, [depositItems]);
 
   // Cross-chain token metadata queries (name/symbol/logo/decimals)
   const destTokenMetaQueries = useQueries({
@@ -520,14 +552,14 @@ export default function BridgePage() {
   // Group deposits by destination EVM chain for cross-chain approval lookups
   const depositsByDestChain = useMemo(() => {
     const grouped: Record<number, Array<{ hash: Hex; item: Deposit }>> = {};
-    for (const it of (depositsQuery.data ?? [])) {
+    for (const it of depositItems) {
       const cid = chainIdFromKey(it.item.destChainKey);
       if (!cid) continue;
       if (!grouped[cid]) grouped[cid] = [];
       grouped[cid]!.push(it);
     }
     return grouped;
-  }, [depositsQuery.data]);
+  }, [depositItems]);
 
   const destChainIds = useMemo(() => Object.keys(depositsByDestChain).map((n) => Number(n)), [depositsByDestChain]);
 
@@ -957,10 +989,16 @@ export default function BridgePage() {
   }, [uniqueViewWithdrawTokens, viewWithdrawTokenMetaQueries]);
 
   // Token metadata for withdraw tokens on the current chain (to match deposit formatting)
+  const withdrawItems = useMemo(() => withdrawsAndApprovalsViewQuery.data ?? [], [withdrawsAndApprovalsViewQuery.data]);
+  const withdrawTotal = withdrawItems.length;
+  const pagedWithdrawItems = useMemo(() => {
+    const start = withdrawPage * WITHDRAWS_PER_PAGE;
+    return withdrawItems.slice(start, start + WITHDRAWS_PER_PAGE);
+  }, [withdrawItems, withdrawPage]);
   const uniqueWithdrawTokens = useMemo(() => {
     const set = new Set<string>();
     const out: Address[] = [];
-    for (const entry of (withdrawsAndApprovalsQuery.data ?? [])) {
+    for (const entry of pagedWithdrawItems) {
       const token = entry.withdraw?.token as Address | undefined;
       if (!token || isZeroAddress(token as string)) continue;
       const lower = (token as string).toLowerCase();
@@ -969,7 +1007,7 @@ export default function BridgePage() {
       out.push(token);
     }
     return out;
-  }, [withdrawsAndApprovalsQuery.data]);
+  }, [pagedWithdrawItems]);
 
   const withdrawTokenMetaQueries = useQueries({
     queries: uniqueWithdrawTokens.map((t) => ({
@@ -1035,7 +1073,7 @@ export default function BridgePage() {
         functionName: "withdrawDelay" as const,
         args: [],
       });
-      return BigInt(value ?? 0);
+      return BigInt(Number(value) || 0);
     },
   });
 
@@ -1056,7 +1094,7 @@ export default function BridgePage() {
         functionName: "withdrawDelay" as const,
         args: [],
       });
-      return BigInt(value ?? 0);
+      return BigInt(Number(value) || 0);
     },
   });
 
@@ -1485,7 +1523,7 @@ export default function BridgePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <CardTitle>Deposits{typeof (depositHashesQuery.data?.length) === "number" ? ` (${depositHashesQuery.data?.length})` : ""}</CardTitle>
+            <CardTitle>Deposits{typeof depositTotal === "number" ? ` (${depositTotal})` : ""}</CardTitle>
             <div className="flex items-center gap-2">
               <Select value={String(depositViewChainId)} onChange={(e) => setDepositViewChainId(Number(e.target.value))}>
                 {filterChainsByEnv(chainId).map((c) => (
@@ -1504,17 +1542,45 @@ export default function BridgePage() {
               </Button>
             </div>
           </div>
+          {/* Deposit Pagination */}
+          {depositTotal > DEPOSITS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {depositPage * DEPOSITS_PER_PAGE + 1}-{Math.min((depositPage + 1) * DEPOSITS_PER_PAGE, depositTotal)} of {depositTotal} deposits
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={depositPage === 0}
+                  onClick={() => setDepositPage(Math.max(0, depositPage - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={(depositPage + 1) * DEPOSITS_PER_PAGE >= depositTotal}
+                  onClick={() => setDepositPage(depositPage + 1)}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
           {!bridge ? (
             <div className="text-muted-foreground">No CL8YBridge for this chain</div>
           ) : depositHashesQuery.isLoading ? (
             <div className="text-muted-foreground">Loading deposit hashes…</div>
-          ) : (depositsQuery.data ?? []).length === 0 ? (
+          ) : depositItems.length === 0 ? (
             <div className="text-muted-foreground">No deposits</div>
           ) : (
             <div className="grid gap-2">
-              {(depositsQuery.data ?? []).map(({ hash, item }) => {
+              {depositItems.map(({ hash, item }) => {
                 const destChainId = chainIdFromKey(item.destChainKey);
                 const destAddr = tryBytes32ToAddress(item.destAccount);
                 const destTokenAddr = tryBytes32ToAddress(item.destTokenAddress);
@@ -1625,7 +1691,7 @@ export default function BridgePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-2">
-            <CardTitle>Withdraw Approvals & Withdraws{typeof (withdrawViewHashesQuery.data?.length) === "number" ? ` (${withdrawViewHashesQuery.data?.length})` : ""}</CardTitle>
+            <CardTitle>Withdraw Approvals & Withdraws{typeof withdrawTotal === "number" ? ` (${withdrawTotal})` : ""}</CardTitle>
             <div className="flex items-center gap-2">
               <Select value={String(withdrawViewChainId)} onChange={(e) => setWithdrawViewChainId(Number(e.target.value))}>
                 {filterChainsByEnv(chainId).map((c) => (
@@ -1638,6 +1704,34 @@ export default function BridgePage() {
               }}>Refresh</Button>
             </div>
           </div>
+          {/* Withdraw Pagination */}
+          {withdrawTotal > WITHDRAWS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {withdrawPage * WITHDRAWS_PER_PAGE + 1}-{Math.min((withdrawPage + 1) * WITHDRAWS_PER_PAGE, withdrawTotal)} of {withdrawTotal} withdraws
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={withdrawPage === 0}
+                  onClick={() => setWithdrawPage(Math.max(0, withdrawPage - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={(withdrawPage + 1) * WITHDRAWS_PER_PAGE >= withdrawTotal}
+                  onClick={() => setWithdrawPage(withdrawPage + 1)}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="grid gap-2 text-sm">
           {!viewBridgeAddr ? (
@@ -1650,11 +1744,27 @@ export default function BridgePage() {
             <div className="text-muted-foreground">Loading withdraw details…</div>
           ) : (
             <div className="grid gap-2">
-              {(withdrawsAndApprovalsViewQuery.data ?? []).map(({ hash, withdraw, approval }) => (
+              {pagedWithdrawItems.map(({ hash, withdraw, approval }) => (
                 <div key={hash} className="border rounded p-2 grid gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <BlockyIcon seed={hash as string} />
                     <div className="text-xs text-muted-foreground truncate">{hash}</div>
+                    {withdraw && (
+                      <div className="flex items-center gap-1">
+                        {(() => {
+                          const srcChainId = chainIdFromKey(withdraw.srcChainKey);
+                          // Check if this withdraw hash exists as a deposit hash on the source chain
+                          const hasMatchingDeposit = srcChainId && withdrawViewRelevantDepositHashesQuery.data?.some(h => 
+                            (h as string).toLowerCase() === (hash as string).toLowerCase()
+                          );
+                          return hasMatchingDeposit ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500" />
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                   {withdraw ? (
                     <div className="grid gap-2 md:grid-cols-3">
