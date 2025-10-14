@@ -339,6 +339,11 @@ export default function BridgePage() {
     }
   }
 
+  function isZeroAddress(addr?: string): boolean {
+    if (!addr) return true;
+    return /^0x0{40}$/i.test(addr.trim());
+  }
+
   // === Helpers: chainKey -> chainId, bytes32 -> address ===
   function chainIdFromKey(key?: Hex): number | undefined {
     if (!key) return undefined;
@@ -835,10 +840,22 @@ export default function BridgePage() {
     if (base > 0) setNowViewUiSec(base);
   }, [nowViewQuery.data]);
   useEffect(() => {
-    const id = setInterval(() => {
-      setNowViewUiSec((prev) => (prev > 0 ? prev + 1 : prev));
-    }, 1000);
-    return () => clearInterval(id);
+    let frameId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const tick = () => {
+      const next = () => {
+        frameId = requestAnimationFrame(() => {
+          setNowViewUiSec((prev) => (prev > 0 ? prev + 1 : prev));
+          timeoutId = setTimeout(tick, 1000);
+        });
+      };
+      next();
+    };
+    timeoutId = setTimeout(tick, 1000);
+    return () => {
+      if (frameId !== undefined) cancelAnimationFrame(frameId);
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    };
   }, []);
 
   // View-chain token metadata for withdraw tokens shown in the view section
@@ -847,7 +864,7 @@ export default function BridgePage() {
     const out: Address[] = [];
     for (const entry of (withdrawsAndApprovalsViewQuery.data ?? [])) {
       const token = entry.withdraw?.token as Address | undefined;
-      if (!token) continue;
+      if (!token || isZeroAddress(token as string)) continue;
       const lower = (token as string).toLowerCase();
       if (set.has(lower)) continue;
       set.add(lower);
@@ -903,7 +920,7 @@ export default function BridgePage() {
     const out: Address[] = [];
     for (const entry of (withdrawsAndApprovalsQuery.data ?? [])) {
       const token = entry.withdraw?.token as Address | undefined;
-      if (!token) continue;
+      if (!token || isZeroAddress(token as string)) continue;
       const lower = (token as string).toLowerCase();
       if (set.has(lower)) continue;
       set.add(lower);
@@ -963,26 +980,41 @@ export default function BridgePage() {
     },
   });
 
-  // AccessManager canCall delay for withdraw
-  const withdrawAbiItem = useMemo(() => getAbiItem({ abi: ABI.BridgeRouter as Abi, name: "withdraw" }), []);
-  const withdrawAbiFn = useMemo(() => {
-    const item = withdrawAbiItem as unknown as { type?: string } | undefined;
-    return item && item.type === "function" ? (withdrawAbiItem as unknown as AbiFunction) : undefined;
-  }, [withdrawAbiItem]);
-  const withdrawSelector = useMemo(() => (withdrawAbiFn ? (getFunctionSelector(withdrawAbiFn) as Hex) : ("0x00000000" as Hex)), [withdrawAbiFn]);
-  
+  // Withdraw delay sourced from CL8YBridge (per-chain global)
   const withdrawDelayQuery = useQuery({
-    queryKey: ["withdraw-delay", chainId, address],
-    enabled: Boolean(publicClient && address),
+    queryKey: ["withdraw-delay", chainId, bridge],
+    enabled: Boolean(publicClient && bridge),
     staleTime: 60_000,
     queryFn: async (): Promise<bigint> => {
-      const res = (await publicClient!.readContract({
-        abi: ABI.AccessManager,
-        address: accessManager,
-        functionName: "canCall" as const,
-        args: [address as Address, (router ?? "0x0000000000000000000000000000000000000000") as Address, withdrawSelector as Hex],
-      })) as [boolean, bigint];
-      return res?.[1] ?? 0n;
+      if (!publicClient || !bridge) return 0n;
+      const value = await publicClient.readContract({
+        abi: ABI.CL8YBridge as Abi,
+        address: bridge as Address,
+        functionName: "withdrawDelay" as const,
+        args: [],
+      });
+      return BigInt(value ?? 0);
+    },
+  });
+
+  const withdrawViewDelayQuery = useQuery({
+    queryKey: ["withdraw-delay-view", withdrawViewChainId, viewBridgeAddr],
+    enabled: Boolean(withdrawViewChainId && viewBridgeAddr && xchainClients[withdrawViewChainId]),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<bigint> => {
+      const cId = withdrawViewChainId;
+      const addr = viewBridgeAddr;
+      if (!cId || !addr) return 0n;
+      const client = xchainClients[cId];
+      if (!client) return 0n;
+      const value = await client.readContract({
+        abi: ABI.CL8YBridge as Abi,
+        address: addr as Address,
+        functionName: "withdrawDelay" as const,
+        args: [],
+      });
+      return BigInt(value ?? 0);
     },
   });
 
@@ -1531,7 +1563,7 @@ export default function BridgePage() {
                       {withdrawViewChainId === chainId && (
                         <div className="mt-1">
                           {(() => {
-                            const delayVal = withdrawDelayQuery.data ?? 0n;
+                            const delayVal = withdrawDelayQuery.data ?? withdrawViewDelayQuery.data ?? 0n;
                             const delayBig = (typeof delayVal === "bigint") ? delayVal : BigInt(delayVal ?? 0);
                             const nowSec = (() => {
                               if (nowViewUiSec > 0) return nowViewUiSec;
