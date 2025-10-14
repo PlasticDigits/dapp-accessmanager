@@ -642,6 +642,10 @@ export default function BridgePage() {
   }, [destChainIds, xchainApproveRoleQueries]);
 
   const [busyApproveHash, setBusyApproveHash] = useState<string | undefined>(undefined);
+  const [busyCancelHash, setBusyCancelHash] = useState<string | undefined>(undefined);
+  const [cancelError, setCancelError] = useState<string | undefined>(undefined);
+  const [busyReenableHash, setBusyReenableHash] = useState<string | undefined>(undefined);
+  const [reenableError, setReenableError] = useState<string | undefined>(undefined);
 
   // Tiny blocky icon for visual hash identity
   function BlockyIcon({ seed, size = 14 }: { seed: string; size?: number }) {
@@ -834,6 +838,44 @@ export default function BridgePage() {
     },
   });
   // Live UI countdown synced to chain time: update per second and resync on query updates
+  const cancelWithdrawAbiItem = useMemo(() => getAbiItem({ abi: ABI.CL8YBridge as Abi, name: "cancelWithdraw" }), []);
+  const cancelWithdrawAbiFn = useMemo(() => {
+    const item = cancelWithdrawAbiItem as unknown as { type?: string } | undefined;
+    return item && item.type === "function" ? (cancelWithdrawAbiItem as unknown as AbiFunction) : undefined;
+  }, [cancelWithdrawAbiItem]);
+  const cancelWithdrawSelector = useMemo(() => (cancelWithdrawAbiFn ? (getFunctionSelector(cancelWithdrawAbiFn) as Hex) : ("0x00000000" as Hex)), [cancelWithdrawAbiFn]);
+
+  const cancelPermissionQuery = useQuery({
+    queryKey: ["can-cancel", withdrawViewChainId, address],
+    enabled: Boolean(
+      withdrawViewChainId &&
+      address &&
+      cancelWithdrawSelector !== ("0x00000000" as Hex) &&
+      (withdrawViewChainId === chainId ? publicClient : xchainClients[withdrawViewChainId]) &&
+      CL8Y_BRIDGE_ADDRESS[withdrawViewChainId]
+    ),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<boolean> => {
+      if (!withdrawViewChainId || !address) return false;
+      const client = withdrawViewChainId === chainId ? publicClient : xchainClients[withdrawViewChainId];
+      const access = getAccessManagerAddress(withdrawViewChainId);
+      const target = CL8Y_BRIDGE_ADDRESS[withdrawViewChainId] as Address | undefined;
+      if (!client || !target) return false;
+      try {
+        const res = (await client.readContract({
+          abi: ABI.AccessManager,
+          address: access,
+          functionName: "canCall" as const,
+          args: [address as Address, target, cancelWithdrawSelector as Hex],
+        })) as [boolean, bigint];
+        return Boolean(res?.[0]);
+      } catch {
+        return false;
+      }
+    },
+  });
+
   const [nowViewUiSec, setNowViewUiSec] = useState<number>(0);
   useEffect(() => {
     const base = Number(nowViewQuery.data ?? 0n);
@@ -1122,6 +1164,110 @@ export default function BridgePage() {
     }
   }
 
+  const cancelMetaByHash = useMemo(() => {
+    const map: Record<string, {
+      srcChainId?: number;
+      viewChainId?: number;
+      destAccount?: Hex;
+      token?: Address;
+      amount?: bigint;
+    }> = {};
+    for (const entry of (withdrawsAndApprovalsViewQuery.data ?? [])) {
+      const lower = (entry.hash as string).toLowerCase();
+      const srcChainId = entry.withdraw?.srcChainKey ? chainIdFromKey(entry.withdraw.srcChainKey) : undefined;
+      map[lower] = {
+        srcChainId,
+        viewChainId: withdrawViewChainId,
+        destAccount: entry.withdraw?.destAccount as Hex | undefined,
+        token: entry.withdraw?.token as Address | undefined,
+        amount: entry.withdraw?.amount,
+      };
+    }
+    return map;
+  }, [withdrawsAndApprovalsViewQuery.data, withdrawViewChainId]);
+
+  async function handleCancelWithdraw(hash: Hex, approval: WithdrawApproval) {
+    if (!withdrawViewChainId || !address) return;
+    const targetChainId = withdrawViewChainId;
+    const bridgeAddr = CL8Y_BRIDGE_ADDRESS[targetChainId] as Address | undefined;
+    if (!bridgeAddr) return;
+    setCancelError(undefined);
+    setBusyCancelHash((hash as string).toLowerCase());
+    try {
+      if (chainId !== targetChainId && switchChainAsync) {
+        await switchChainAsync({ chainId: targetChainId });
+      }
+      const targetClient = targetChainId === chainId ? publicClient : xchainClients[targetChainId];
+      if (!targetClient) throw new Error("Missing public client for cancel chain");
+      await targetClient.simulateContract({
+        abi: ABI.CL8YBridge as Abi,
+        address: bridgeAddr,
+        functionName: "cancelWithdrawApproval" as const,
+        args: [hash],
+        account: address as Address,
+      });
+      const txHash = await writeContractAsync({
+        chainId: targetChainId,
+        abi: ABI.CL8YBridge as Abi,
+        address: bridgeAddr,
+        functionName: "cancelWithdrawApproval" as const,
+        args: [hash],
+      });
+      await targetClient.waitForTransactionReceipt({ hash: txHash });
+      await queryClient.invalidateQueries({ queryKey: ["bridge", targetChainId, bridgeAddr, "withdraws"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge", targetChainId, bridgeAddr, "withdraw-hashes"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge-view", targetChainId, bridgeAddr, "withdraws"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge-view", targetChainId, bridgeAddr, "withdraw-hashes"] });
+    } catch (error) {
+      console.error("cancelWithdraw error", hash, error);
+      const msg = (error as { message?: string })?.message;
+      setCancelError(msg ?? "Cancel failed");
+    } finally {
+      setBusyCancelHash(undefined);
+    }
+  }
+
+  async function handleReenableWithdraw(hash: Hex) {
+    if (!withdrawViewChainId || !address) return;
+    const targetChainId = withdrawViewChainId;
+    const bridgeAddr = CL8Y_BRIDGE_ADDRESS[targetChainId] as Address | undefined;
+    if (!bridgeAddr) return;
+    setReenableError(undefined);
+    setBusyReenableHash((hash as string).toLowerCase());
+    try {
+      if (chainId !== targetChainId && switchChainAsync) {
+        await switchChainAsync({ chainId: targetChainId });
+      }
+      const targetClient = targetChainId === chainId ? publicClient : xchainClients[targetChainId];
+      if (!targetClient) throw new Error("Missing public client for reenable chain");
+      await targetClient.simulateContract({
+        abi: ABI.CL8YBridge as Abi,
+        address: bridgeAddr,
+        functionName: "reenableWithdrawApproval" as const,
+        args: [hash],
+        account: address as Address,
+      });
+      const txHash = await writeContractAsync({
+        chainId: targetChainId,
+        abi: ABI.CL8YBridge as Abi,
+        address: bridgeAddr,
+        functionName: "reenableWithdrawApproval" as const,
+        args: [hash],
+      });
+      await targetClient.waitForTransactionReceipt({ hash: txHash });
+      await queryClient.invalidateQueries({ queryKey: ["bridge", targetChainId, bridgeAddr, "withdraws"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge", targetChainId, bridgeAddr, "withdraw-hashes"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge-view", targetChainId, bridgeAddr, "withdraws"] });
+      await queryClient.invalidateQueries({ queryKey: ["bridge-view", targetChainId, bridgeAddr, "withdraw-hashes"] });
+    } catch (error) {
+      console.error("reenableWithdraw error", hash, error);
+      const msg = (error as { message?: string })?.message;
+      setReenableError(msg ?? "Reenable failed");
+    } finally {
+      setBusyReenableHash(undefined);
+    }
+  }
+
   // Approve withdraw on destination chain for a given source deposit
   async function handleApproveWithdrawForDeposit(hash: Hex, item: Deposit) {
     try {
@@ -1181,6 +1327,44 @@ export default function BridgePage() {
   function fmtBig(x?: bigint) {
     return typeof x === "bigint" ? x.toString() : String(x ?? "");
   }
+
+  const reenableWithdrawAbiItem = useMemo(() => getAbiItem({ abi: ABI.CL8YBridge as Abi, name: "reenableWithdrawApproval" }), []);
+  const reenableWithdrawAbiFn = useMemo(() => {
+    const item = reenableWithdrawAbiItem as unknown as { type?: string } | undefined;
+    return item && item.type === "function" ? (reenableWithdrawAbiItem as unknown as AbiFunction) : undefined;
+  }, [reenableWithdrawAbiItem]);
+  const reenableWithdrawSelector = useMemo(() => (reenableWithdrawAbiFn ? (getFunctionSelector(reenableWithdrawAbiFn) as Hex) : ("0x00000000" as Hex)), [reenableWithdrawAbiFn]);
+
+  const reenablePermissionQuery = useQuery({
+    queryKey: ["can-reenable", withdrawViewChainId, address],
+    enabled: Boolean(
+      withdrawViewChainId &&
+      address &&
+      reenableWithdrawSelector !== ("0x00000000" as Hex) &&
+      CL8Y_BRIDGE_ADDRESS[withdrawViewChainId] &&
+      (withdrawViewChainId === chainId ? publicClient : xchainClients[withdrawViewChainId])
+    ),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<boolean> => {
+      if (!withdrawViewChainId || !address) return false;
+      const client = withdrawViewChainId === chainId ? publicClient : xchainClients[withdrawViewChainId];
+      const access = getAccessManagerAddress(withdrawViewChainId);
+      const target = CL8Y_BRIDGE_ADDRESS[withdrawViewChainId] as Address | undefined;
+      if (!client || !target) return false;
+      try {
+        const res = (await client.readContract({
+          abi: ABI.AccessManager,
+          address: access,
+          functionName: "canCall" as const,
+          args: [address as Address, target, reenableWithdrawSelector as Hex],
+        })) as [boolean, bigint];
+        return Boolean(res?.[0]);
+      } catch {
+        return false;
+      }
+    },
+  });
 
   if (!mounted) return null;
   return (
@@ -1575,17 +1759,57 @@ export default function BridgePage() {
                             const approvedAt = (typeof approval.approvedAt === "bigint") ? approval.approvedAt : BigInt(approval.approvedAt ?? 0);
                             const allowedAt = approvedAt + delayBig;
                             const remaining = allowedAt > nowBig ? Number(allowedAt - nowBig) : 0;
+                            const showCancel = approval.isApproved && !approval.executed && !approval.cancelled;
                             const canClick = approval.isApproved && !approval.executed && !approval.cancelled && remaining === 0 && Boolean(address);
+                            const showReenable = approval.isApproved && approval.cancelled && !approval.executed;
+                            const canCancel = showCancel && Boolean(address);
+                            const canReenable = showReenable && Boolean(reenablePermissionQuery.data);
                             return (
-                              <Button
-                                size="sm"
-                                className="h-7 px-2"
-                                disabled={!canClick}
-                                onClick={() => handleWithdrawCall(hash)}
-                                title={remaining > 0 ? `Wait ${remaining}s` : undefined}
-                              >
-                                {remaining > 0 ? `Withdraw in ${remaining}s` : "Withdraw"}
-                              </Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  disabled={!canClick}
+                                  onClick={() => handleWithdrawCall(hash)}
+                                  title={remaining > 0 ? `Wait ${remaining}s` : undefined}
+                                >
+                                  {remaining > 0 ? `Withdraw in ${remaining}s` : "Withdraw"}
+                                </Button>
+                                {showCancel && (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      variant="outline"
+                                      disabled={!canCancel || busyCancelHash === (hash as string).toLowerCase()}
+                                      onClick={() => handleCancelWithdraw(hash, approval)}
+                                      title={!canCancel ? "Not authorized to cancel" : cancelError}
+                                    >
+                                      {busyCancelHash === (hash as string).toLowerCase() ? "Cancelling…" : "Cancel"}
+                                    </Button>
+                                    {cancelError && busyCancelHash === undefined && (
+                                      <span className="text-xs text-red-500">{cancelError}</span>
+                                    )}
+                                  </div>
+                                )}
+                                {showReenable && (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      variant="outline"
+                                      disabled={!canReenable || busyReenableHash === (hash as string).toLowerCase()}
+                                      onClick={() => handleReenableWithdraw(hash)}
+                                      title={!canReenable ? "Not authorized to reenable" : reenableError}
+                                    >
+                                      {busyReenableHash === (hash as string).toLowerCase() ? "Reenabling…" : "Reenable"}
+                                    </Button>
+                                    {reenableError && busyReenableHash === undefined && (
+                                      <span className="text-xs text-red-500">{reenableError}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })()}
                         </div>

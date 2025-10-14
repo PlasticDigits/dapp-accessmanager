@@ -1,5 +1,5 @@
-import AccessManager from "@/abi/AccessManagerEnumerable.json";
-import FactoryTokenCL8yBridged from "@/abi/FactoryTokenCL8yBridged.json";
+import AccessManagerArtifact from "../../artifacts/out/AccessManagerEnumerable.sol/AccessManagerEnumerable.json";
+import FactoryTokenCl8yBridgedArtifact from "../../artifacts/out/FactoryTokenCl8yBridged.sol/FactoryTokenCl8yBridged.json";
 import type { Abi } from "viem";
 
 // Import artifacts for additional contracts (use .abi at runtime)
@@ -17,8 +17,10 @@ import Create3DeployerArtifact from "../../artifacts/out/Create3Deployer.sol/Cre
 import TokenCl8yBridgedArtifact from "../../artifacts/out/TokenCl8yBridged.sol/TokenCl8yBridged.json";
 
 export const ABI = {
-  AccessManager: AccessManager as unknown as Abi,
-  FactoryTokenCL8yBridged: FactoryTokenCL8yBridged as unknown as Abi,
+  AccessManager: (AccessManagerArtifact as unknown as { abi: Abi }).abi,
+  FactoryTokenCL8yBridged: (
+    FactoryTokenCl8yBridgedArtifact as unknown as { abi: Abi }
+  ).abi,
   ChainRegistry: (ChainRegistryArtifact as unknown as { abi: Abi }).abi,
   TokenRegistry: (TokenRegistryArtifact as unknown as { abi: Abi }).abi,
   MintBurn: (MintBurnArtifact as unknown as { abi: Abi }).abi,
